@@ -1,0 +1,6 @@
+# The Python parts of the Different Engine. The launchers install these for you.
+chess>=1.10          # the rules of chess (python-chess)
+vosk>=0.3.44         # offline speech recognition
+sounddevice>=0.4.6   # the microphone
+certifi              # safe downloads of the speech model and engine
+pyttsx3>=2.90; sys_platform != "darwin"   # the speaking voice (Macs use their built-in "say" voice)
