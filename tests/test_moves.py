@@ -5,6 +5,7 @@ import pytest
 
 from different_engine.moves import (parse, normalise, describe_move, describe_position,
                                     for_speech, describe_game, parse_number, is_illegal_attempt,
+                                    is_help_command, special_command, fuzzy_command, parse_level_command,
                                     join_words, number_word)
 
 
@@ -138,13 +139,28 @@ def test_en_passant():
 
 @pytest.mark.parametrize("text,command", [
     ("repeat", "repeat"), ("say again", "repeat"), ("position", "position"), ("position please", "position"),
-    ("resign", "resign"), ("draw", "draw"), ("offer a draw", "draw"), ("help", "help"), ("rating", "rating"),
+    ("last move", "last move"), ("last moves", "last move"),
+    ("what was the last move", "last move"), ("say last move", "last move"),
+    ("what did you play", "last move"), ("What did you play?", "last move"),
+    ("resign", "resign"), ("draw", "draw"), ("offer a draw", "draw"), ("help", "help"), ("commands", "help"),
+    ("what can I say", "help"), ("what can i say?", "help"), ("Help!", "help"),
+    ("rating", "rating"),
+    ("my rating", "rating"), ("what's my rating", "rating"), ("what is my rating", "rating"),
     ("lost thread", "lost thread"), ("lost the thread", "lost thread"), ("I've lost the thread", "lost thread"),
     ("I have lost the thread", "lost thread"), ("Lost the thread!", "lost thread"),
     ("progress", "progress"), ("my progress", "progress"),
+    ("milestones", "progress"), ("my milestones", "progress"), ("achievements", "progress"),
+    ("how am I doing", "progress"), ("progress report", "progress"),
+    ("process", "progress"), ("pro gress", "progress"), ("progres", "progress"),
+    ("prog ress", "progress"), ("congress", "progress"),
+    ("take back", "take back"), ("takeback", "take back"), ("undo", "take back"),
+    ("go back", "take back"), ("take that back", "take back"),
     ("square drill", "square drill"), ("colour drill", "square drill"), ("color drill", "square drill"),
     ("square colours", "square drill"), ("square colors", "square drill"),
     ("reset rating", "reset rating"), ("reset my rating", "reset rating"), ("reset the rating", "reset rating"),
+    ("level 4", "level"), ("level four", "level"), ("set level 4", "level"),
+    ("change level to 8", "level"), ("change level to eight", "level"),
+    ("set level one", "level"), ("level 9", "level"),
 ])
 def test_commands(text, command):
     r = parse(START, text)
@@ -229,6 +245,11 @@ def test_speech_grammar_uses_known_words():
     from different_engine.speech import grammar_phrases
     phrases = grammar_phrases()        # raises if a phrase uses a word outside the vocabulary
     assert "knight f three" in phrases and "castles king side" in phrases and phrases[-1] == "[unk]"
+    assert "help" in phrases and "commands" in phrases and "what can i say" in phrases
+    assert "last move" in phrases and "what did you play" in phrases
+    assert "say last move" in phrases and "what was the last move" in phrases
+    assert "level four" in phrases and "set level four" in phrases
+    assert "change level to four" in phrases
     # every phrase the recogniser can produce should parse without crashing
     for phrase in phrases[:-1]:
         parse(START, phrase)
@@ -270,3 +291,45 @@ def test_legal_moves_and_commands_are_not_illegal_attempts():
 def test_word_helpers():
     assert join_words([5]) == "5" and join_words([5, 9]) == "5 and 9" and join_words([5, 9, 12]) == "5, 9 and 12"
     assert number_word(2) == "two" and number_word(28) == "28"
+
+
+def test_help_is_recognised_but_not_fuzzily():
+    for text in ("help", "commands", "what can I say"):
+        assert is_help_command(text)
+        assert special_command(text) == "help"
+    assert not is_help_command("helm")
+    assert not is_help_command("e4")
+    assert fuzzy_command("help") is None
+
+
+def test_last_move_is_not_confused_with_other_commands():
+    assert special_command("last") is None
+    assert special_command("last pawn") is None
+    assert fuzzy_command("last") is None
+    assert parse(START, "last").kind == "problem"
+    # "lost thread" is still the lost-thread command, not last move
+    assert parse(START, "lost thread").command == "lost thread"
+    assert parse(START, "lost").command == "lost thread"
+    # "say again" is still repeat; "say last move" is the new command
+    assert parse(START, "say again").command == "repeat"
+    assert parse(START, "say last move").command == "last move"
+    assert special_command("last move") == "last move"
+
+
+def test_parse_level_command_accepts_words_and_digits():
+    assert parse_level_command("level 4") == 4
+    assert parse_level_command("level four") == 4
+    assert parse_level_command("set level 1") == 1
+    assert parse_level_command("set level one") == 1
+    assert parse_level_command("change level to 8") == 8
+    assert parse_level_command("change level to eight") == 8
+    assert parse_level_command("Level 4!") == 4
+    assert parse_level_command("level 0") == "invalid"
+    assert parse_level_command("level 9") == "invalid"
+    assert parse_level_command("level twenty") == "invalid"
+    assert parse_level_command("level") is None
+    assert parse_level_command("e4") is None
+    assert parse_level_command("settings") is None
+    assert special_command("level 4") == "level"
+    assert special_command("level") is None
+    assert parse(START, "e4").kind == "move"

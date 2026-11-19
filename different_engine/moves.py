@@ -60,9 +60,45 @@ COMMANDS = {
     "progress": "progress",
 }
 
+# "help" must be exact; "commands" and "what can I say" are aliases.
+HELP_PHRASE = re.compile(r"^(?:help|commands|what can i say)\b")
+
 RESET_RATING_PHRASE = re.compile(r"\breset\s+(?:my\s+|the\s+)?rating\b")
 DRILL_PHRASE = re.compile(
     r"\b(square\s+drill|colour\s+drill|color\s+drill|square\s+colours|square\s+colors)\b"
+)
+# "take" on its own means a capture, so these phrases must be recognised first.
+TAKEBACK_PHRASE = re.compile(
+    r"\b(?:take\s*back|take\s+that\s+back|undo|go\s+back)\b"
+)
+# "last" on its own is not a command, and must not be confused with "lost".
+LAST_MOVE_PHRASE = re.compile(
+    r"""\b(?:
+        (?:say\s+)?last\s+moves?|
+        what\s+was\s+the\s+last\s+moves?|
+        what\s+did\s+you\s+play
+    )\b""",
+    re.VERBOSE,
+)
+# "level" on its own is not a command; a number from 1 to 8 must follow.
+LEVEL_COMMAND = re.compile(
+    r"\b(?:set\s+level|change\s+level(?:\s+to)?|level(?:\s+to)?)\b"
+)
+# "progress" is often misheard with a British accent; "milestones" is the main alternative.
+PROGRESS_PHRASE = re.compile(
+    r"""\b(?:
+        progress(?:\s+report)?|
+        progres|
+        pro\s*gress|
+        prog\s*ress|
+        process(?:\s+report)?|
+        congress|
+        milestones?|
+        achievements?|
+        how\s+am\s+i\s+doing|
+        how\s+i\s+am\s+doing
+    )\b""",
+    re.VERBOSE,
 )
 
 FILES = "abcdefgh"
@@ -165,22 +201,151 @@ def _try_notation(board, text):
     return None
 
 
-def special_command(text):
+def is_help_command(text):
+    """True for 'help', 'commands' or 'what can I say' (and close variants)."""
+    t = _command_text(text)
+    return bool(t and HELP_PHRASE.match(t))
+
+
+def _command_text(text):
+    """Lower-case letters only, with punctuation stripped and spaces squeezed."""
+    t = re.sub(r"[^a-z\s]", " ", (text or "").lower())
+    return re.sub(r"\s+", " ", t).strip()
+
+
+def _levenshtein(a, b):
+    """Edit distance, short-circuiting when the strings already differ by more than 2."""
+    if a == b:
+        return 0
+    if not a:
+        return len(b)
+    if not b:
+        return len(a)
+    if abs(len(a) - len(b)) > 2:
+        return 99
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        curr = [i]
+        for j, cb in enumerate(b, 1):
+            curr.append(min(curr[j - 1] + 1, prev[j] + 1, prev[j - 1] + (ca != cb)))
+        prev = curr
+    return prev[-1]
+
+
+def _fuzzy_threshold(length):
+    """Allow one typo on mid-length words, two on longer ones; short words must match exactly."""
+    if length < 5:
+        return 0
+    if length <= 6:
+        return 1
+    return 2
+
+
+# Phrases the recogniser might produce for a command, for fuzzy matching.
+# Short words such as "draw" or "help" are omitted: they must be exact.
+COMMAND_PHRASES = (
+    "progress", "milestones", "milestone", "achievements", "achievement",
+    "how am i doing", "progress report", "my milestones", "my progress",
+    "take back", "take that back", "go back", "undo",
+    "reset rating", "reset my rating", "square drill", "colour drill", "color drill",
+    "lost thread", "lost the thread", "position", "repeat", "resign",
+    "rating", "my rating", "what is my rating",
+    "last move", "last moves", "what was the last move", "say last move",
+    "what did you play",
+)
+
+
+def _looks_like_move(text):
+    """True if the words look like a chess move, not a command to fuzzy-match."""
+    t = _command_text(text)
+    if re.search(r"\b[a-h][1-8]\b", t):
+        return True
+    tokens = normalise(text)
+    if any(_is_square(tok) for tok in tokens):
+        return True
+    if any(tok in PIECE_WORDS for tok in tokens):
+        return True
+    if any(tok in ("castles", "kingside", "queenside") for tok in tokens):
+        return True
+    return False
+
+
+def fuzzy_command(text):
+    """Best matching command for a slightly misheard phrase, or None.
+
+    Only used when the words do not look like a chess move.  Short commands
+    such as 'draw' or 'help' are not fuzzy-matched.
+    """
+    t = _command_text(text)
+    if not t or _looks_like_move(text):
+        return None
+    compact = t.replace(" ", "")
+    best, best_dist = None, 99
+    for phrase in COMMAND_PHRASES:
+        target = phrase.replace(" ", "")
+        distance = _levenshtein(compact, target)
+        allowed = _fuzzy_threshold(max(len(compact), len(target)))
+        if allowed and 0 < distance <= allowed and distance < best_dist:
+            # Map the matched phrase back to the command special_command would return
+            best, best_dist = phrase, distance
+    if best is None:
+        return None
+    return _command_for_phrase(best)
+
+
+def _command_for_phrase(phrase):
+    """Map a matched command phrase to the canonical command name."""
+    if phrase in ("progress", "milestones", "milestone", "achievements", "achievement",
+                  "how am i doing", "progress report", "my milestones", "my progress"):
+        return "progress"
+    if phrase in ("take back", "take that back", "go back", "undo"):
+        return "take back"
+    if phrase.startswith("reset"):
+        return "reset rating"
+    if "drill" in phrase:
+        return "square drill"
+    if "thread" in phrase:
+        return "lost thread"
+    if "rating" in phrase:
+        return "rating"
+    if "last move" in phrase or phrase == "what did you play":
+        return "last move"
+    return phrase
+
+
+def special_command(text, fuzzy=True):
     """Session commands that may be a phrase, not a single word.
 
-    'reset rating' has to be recognised before 'rating', and 'square drill'
-    before the word 'square' is dropped as filler.
+    'reset rating' has to be recognised before 'rating', 'take back' before
+    'take' is treated as a capture, 'last move' before any use of 'last',
+    and 'square drill' before the word
+    'square' is dropped as filler.  'milestones' is accepted as well as
+    'progress', together with common mishearings of a British 'progress'.
+    If nothing matches exactly and the words do not look like a move, a
+    conservative fuzzy match against the command list is tried.
     """
-    t = re.sub(r"[^a-z\s]", " ", (text or "").lower())
-    t = re.sub(r"\s+", " ", t).strip()
+    t = _command_text(text)
     if not t:
         return None
+    if is_help_command(t):
+        return "help"
     if RESET_RATING_PHRASE.search(t):
         return "reset rating"
+    if TAKEBACK_PHRASE.search(t):
+        return "take back"
+    if LAST_MOVE_PHRASE.search(t):
+        return "last move"
+    if parse_level_command(text) is not None:
+        return "level"
     if DRILL_PHRASE.search(t):
         return "square drill"
-    if re.search(r"\bprogress\b", t):
+    if PROGRESS_PHRASE.search(t):
         return "progress"
+    # "rating", "my rating", "what's my rating" — after "reset rating" above
+    if re.search(r"\brating\b", t):
+        return "rating"
+    if fuzzy:
+        return fuzzy_command(text)
     return None
 
 
@@ -408,6 +573,25 @@ def parse_number(text):
     return total if found else None
 
 
+def parse_level_command(text):
+    """A 'level N' command: return 1-8, 'invalid' if out of range, or None.
+
+    Accepts 'level 4', 'level four', 'set level 4' and 'change level to 4'.
+    A bare 'level' is not a command, so it does not steal the settings question.
+    """
+    # Keep digits, unlike _command_text, so "level 4" is not reduced to "level".
+    t = re.sub(r"[^a-z0-9\s]", " ", (text or "").lower())
+    t = re.sub(r"\s+", " ", t).strip()
+    if not t or not LEVEL_COMMAND.search(t):
+        return None
+    n = parse_number(t)
+    if n is None:
+        return None
+    if n < 1 or n > 8:
+        return "invalid"
+    return n
+
+
 SMALL_NUMBERS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight",
                  "nine", "ten", "eleven", "twelve"]
 
@@ -434,10 +618,15 @@ def vocabulary():
         "a", "b", "c", "d", "e", "f", "g", "h", "one", "two", "three", "four", "five",
         "six", "seven", "eight", "nine", "ten", "zero", "yes", "no", "white", "black",
         "random", "level", "unlimited", "usual", "custom", "never", "stop", "change",
-        "keep", "en", "passant", "offer", "please", "again", "say", "the",
+        "keep", "set", "en", "passant", "offer", "please", "again", "say", "the",
         "chess", "visualisation", "visualization", "not", "sure", "skip",
         "play", "settings", "review", "switch", "colour", "color", "colours",
-        "colors", "sides", "as", "light", "dark", "progress", "drill", "square",
-        "reset", "my",
+        "colors", "sides", "as", "light", "dark", "lite", "lights", "darke",
+        "progress", "drill", "square",
+        "reset", "my", "take", "back", "undo", "that", "go", "what", "is",
+        "commands", "can", "last", "was", "did", "you", "move", "moves",
+        "milestones", "milestone", "achievements", "achievement", "how", "am",
+        "doing", "process", "congress", "report", "progres", "prog", "gress",
+        "ress", "pro", "i",
     } | set(NUMBER_WORDS) - {"won", "too", "for", "ate", "nought"}
     return sorted(words)

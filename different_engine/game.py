@@ -15,7 +15,8 @@ import chess.pgn
 from . import drill, milestones, ratings, review, settings as config
 from .engine import Engine, LEVELS, level_name, level_rating
 from .moves import (parse, describe_move, describe_position, describe_game, parse_number,
-                    is_illegal_attempt, number_word, special_command)
+                    is_illegal_attempt, is_help_command, number_word, special_command,
+                    parse_level_command)
 from .reconstruction import describe_reconstruction, short_score
 
 
@@ -29,15 +30,32 @@ class Interface:
     def __init__(self, speaker, listener=None):
         self.speaker = speaker
         self.listener = listener
+        self.help_context = None
+        self.help_requests_left = None
 
     def say(self, text):
         self.speaker.say(text)
 
     def hear(self, prompt):
+        """Listen or read a line.  'help' prints the command list and listens again.
+
+        Nothing is spoken for help.  In hands-free mode the listener is started
+        again after the list has been printed, so the next move can be said as usual.
+        """
         try:
-            if self.listener:
-                return self.listener.listen("  " + prompt + " Press Enter, then speak (or type it): ")
-            return input("  " + prompt + " ")
+            while True:
+                if self.listener:
+                    text = self.listener.listen("  " + prompt + " Press Enter, then speak (or type it): ")
+                    self.last_thinking_seconds = getattr(self.listener, "last_thinking_seconds", None)
+                else:
+                    text = input("  " + prompt + " ")
+                    # Text mode: thinking time is measured by the caller if it started
+                    # a clock around this call; leave last_thinking_seconds unset.
+                    self.last_thinking_seconds = None
+                if is_help_command(text):
+                    print_help(self.help_context, self.help_requests_left)
+                    continue
+                return text
         except EOFError:
             raise Stop()
 
@@ -217,8 +235,16 @@ def resolve_colour(command, current):
 def session_command(text):
     """Commands for before the first move, between games, or (for progress) at any time."""
     special = special_command(text)
-    if special:
-        return {"square drill": "drill", "reset rating": "reset-rating", "progress": "progress"}[special]
+    session = {
+        "square drill": "drill",
+        "reset rating": "reset-rating",
+        "progress": "progress",
+        "rating": "rating",
+        "help": "help",
+        "level": "level",
+    }
+    if special in session:
+        return session[special]
     return pregame_command(text)
 
 
@@ -247,18 +273,26 @@ def show_progress(ui):
 
 
 def run_square_drill(ui):
-    drill.run_drill(ui)
+    previous = (getattr(ui, "help_context", None), getattr(ui, "help_requests_left", None))
+    ui.help_context, ui.help_requests_left = "drill", None
+    try:
+        drill.run_drill(ui)
+    finally:
+        ui.help_context, ui.help_requests_left = previous
     milestones.update_and_announce(ui)
 
 
-def between_games(ui):
+def between_games(ui, s=None):
     """True if the player would like another game.
 
-    Also accepts square drill, progress and reset rating between games.
+    Also accepts square drill, progress, rating, reset rating and a level
+    change between games.
     """
     def understand(text):
         cmd = session_command(text)
-        if cmd in ("drill", "progress", "reset-rating"):
+        if cmd == "level":
+            return ("level", text)
+        if cmd in ("drill", "progress", "reset-rating", "rating", "help"):
             return cmd
         words = (text or "").split()
         if is_yes(words):
@@ -268,16 +302,25 @@ def between_games(ui):
         return None
 
     while True:
-        choice = ui.ask("Would you like another game? You can also say square drill, progress, "
-                        "or reset rating.", understand, "Yes, no, or a command?")
+        ui.help_context, ui.help_requests_left = "between", None
+        choice = ui.ask("Would you like another game? You can also say square drill, milestones, "
+                        "rating, or reset rating.", understand, "Yes, no, or a command?")
         if choice == "play":
             return True
         if choice == "quit":
             return False
-        if choice == "drill":
+        if choice == "help":
+            print_help("between")
+        elif isinstance(choice, tuple) and choice[0] == "level":
+            if s is None:
+                s = config.load()
+            apply_level_command(ui, s, choice[1])
+        elif choice == "drill":
             run_square_drill(ui)
         elif choice == "progress":
             show_progress(ui)
+        elif choice == "rating":
+            ui.say(ratings.spoken_rating(ratings.read_games(config.RATING_LOG)))
         elif choice == "reset-rating":
             reset_rating(ui)
 
@@ -286,17 +329,100 @@ def between_games(ui):
 # The game itself
 # ---------------------------------------------------------------------------
 
-HELP = ("Say your move as you would to a person, for example: knight f3, knight from g1 to f3, "
-        "pawn takes d5, castles kingside, or pawn to e8 queen. If I mishear a letter, use the spelling "
-        "alphabet: alpha, bravo, charlie, delta, echo, foxtrot, golf, hotel. You can also say: repeat, "
-        "for my last move; position, to hear the whole position; lost thread, if you lose track of "
-        "the position, so that I can note the move; draw, to offer a draw; resign; "
-        "rating, for your rating so far; progress, for your milestones; square drill, for a spoken "
-        "test of square colours; and reset rating, to start your rating again, keeping your old games. "
-        "Square drill and reset rating are for before your first move, or between games. "
-        "Before your first move you can also say settings, to change "
-        "colour, level, the position limit and the start; or play white, play black, switch colours, "
-        "or random, to change sides.")
+# Which command groups are "now available" in each situation.
+# "before" (a game has started but the player has not yet moved) includes
+# both in-game commands and the pre-game / between-games commands.
+HELP_NOW = {
+    "during": {"during"},
+    "before": {"during", "before"},
+    "between": {"before"},
+    "after": {"after"},
+    "review": {"after"},
+    "drill": {"drill"},
+}
+
+
+def _help_requests_line(requests_left):
+    if requests_left is None:
+        return None
+    if isinstance(requests_left, str):
+        text = requests_left
+    elif requests_left < 0:
+        text = "unlimited"
+    else:
+        text = str(requests_left)
+    return f"  Position requests left: {text}"
+
+
+def format_help(context=None, requests_left=None):
+    """A compact, grouped command list for the screen.  Nothing here is spoken."""
+    during = [
+        "  repeat                         Repeat the engine's last move",
+        "  last move                      Your last move and my reply",
+        "  take back / undo / go back     Undo your last move and its reply",
+        "  position                       Hear the position (uses a request)",
+    ]
+    requests = _help_requests_line(requests_left)
+    if requests and context in ("during", "before", None):
+        during.append(requests)
+    during += [
+        "  lost thread                    Note that you have lost the thread",
+        "  rating                         Your current blindfold rating",
+        "  milestones / progress          Your milestones so far",
+        "  help                           Show this list (nothing is spoken)",
+        "  level 1 to 8                   Change the engine's level",
+        "  draw                           Offer a draw",
+        "  resign                         Resign (it will check first)",
+    ]
+    groups = [
+        ("during", "During a game", during),
+        ("before", "Before your first move, or between games", [
+            "  settings                       Colour, level, requests and start",
+            "  level 1 to 8                   Change the engine's level",
+            "  play white / play black / switch colours / random",
+            "  square drill                   The 30-square colour test",
+            "  reset rating                   Start your rating again",
+        ]),
+        ("after", "After a game", [
+            "  review                         Or press Enter to skip",
+            "  In the review: chess / visualisation / not sure / skip",
+            "  never                          You never lost the thread",
+        ]),
+        ("drill", "Square-colour drill", [
+            "  light / dark                   White and black are fine too",
+        ]),
+    ]
+    now = HELP_NOW.get(context, set())
+    lines = ["Commands"]
+    current = [g for g in groups if g[0] in now]
+    later = [g for g in groups if g[0] not in now]
+
+    def add(key, title, body, mark):
+        heading = f"Now available -- {title}" if mark else title
+        if lines[-1] not in ("Commands", "Also available at other times"):
+            lines.append("")
+        lines.append(heading)
+        lines.extend(body)
+
+    if current:
+        for key, title, body in current:
+            add(key, title, body, True)
+        if later:
+            lines.append("")
+            lines.append("Also available at other times")
+            for key, title, body in later:
+                add(key, title, body, False)
+    else:
+        for key, title, body in groups:
+            add(key, title, body, False)
+    return "\n".join(lines)
+
+
+def print_help(context=None, requests_left=None):
+    """Print the command list to the screen.  Does not speak."""
+    print()
+    print(format_help(context, requests_left))
+    print()
 
 CHECKPOINT = "This would be a good moment for a checkpoint."
 
@@ -320,23 +446,184 @@ def rating_for_status(games=None):
     return f"{p['performance']} ({p['games']} {noun})"
 
 
-def format_status(board, player, level, limit, used, games=None, milestones_count=None):
+def format_status(board, player, level, limit, used, games=None, milestones_count=None, takebacks=0):
     """A compact status line: move, colour, level, requests left, rating and milestones.
 
     Never includes the board, the moves, or an evaluation.
+    Take-backs are shown only when there has been at least one in this game.
     """
     colour = "White" if player == chess.WHITE else "Black"
     left = "unlimited" if limit < 0 else str(max(0, limit - used))
     if milestones_count is None:
         milestones_count = milestones.counts()
     earned, total = milestones_count
-    return (f"Move {board.fullmove_number} | You: {colour} | Level {level} | "
+    line = (f"Move {board.fullmove_number} | You: {colour} | Level {level} | "
             f"Position requests left: {left} | Blindfold rating: {rating_for_status(games)} | "
             f"Milestones {earned}/{total}")
+    if takebacks:
+        line += f" | Take-backs: {takebacks}"
+    return line
 
 
-def print_status(board, player, level, limit, used, games=None):
-    print("  " + format_status(board, player, level, limit, used, games))
+def print_status(board, player, level, limit, used, games=None, takebacks=0):
+    print("  " + format_status(board, player, level, limit, used, games, takebacks=takebacks))
+
+
+def _as_spoken(text):
+    """Lower-case the first letter so the phrase sits mid-sentence."""
+    return text[0].lower() + text[1:] if text else text
+
+
+def _plain_move(text):
+    """Drop a trailing check or checkmate from a move description."""
+    return re.sub(r", (?:checkmate|check)$", "", text or "")
+
+
+def _replay(board):
+    """The starting position of `board` and the moves that led to it."""
+    start = board.copy()
+    moves = []
+    while start.move_stack:
+        moves.append(start.pop())
+    moves.reverse()
+    return start, moves
+
+
+def player_move_count(board, player):
+    """How many moves the player has made from the starting position."""
+    start, moves = _replay(board)
+    count = 0
+    for move in moves:
+        if start.turn == player:
+            count += 1
+        start.push(move)
+    return count
+
+
+def last_engine_reply(board, player):
+    """The engine's last move still on the board, in words, or None."""
+    if not board.move_stack or board.turn != player:
+        return None
+    previous = board.copy()
+    move = previous.pop()
+    return describe_move(previous, move)
+
+
+def last_moves_spoken(board, player):
+    """Words for the 'last move' command, taken from the current board.
+
+    Mentions the player's last move and, if there is one, the engine's reply
+    after it.  An earlier engine move is not described as a reply.  Reflects
+    take-backs, because it reads the history as it stands now.
+    """
+    start, moves = _replay(board)
+    if not moves:
+        return "No moves yet."
+
+    cursor = start.copy()
+    last_player_idx = last_engine_idx = None
+    descriptions = []
+    for i, move in enumerate(moves):
+        descriptions.append(describe_move(cursor, move))
+        if cursor.turn == player:
+            last_player_idx = i
+        else:
+            last_engine_idx = i
+        cursor.push(move)
+
+    if last_player_idx is None:
+        return f"I played {_as_spoken(_plain_move(descriptions[last_engine_idx]))}."
+    your = _as_spoken(_plain_move(descriptions[last_player_idx]))
+    if last_engine_idx is not None and last_engine_idx > last_player_idx:
+        mine = _as_spoken(_plain_move(descriptions[last_engine_idx]))
+        return f"Your last move was {your}, and I played {mine}."
+    return f"Your last move was {your}."
+
+
+def take_back(board, player, log=None):
+    """Undo the player's last move and the engine's reply, if the engine has already played.
+
+    Mutates `board`.  If `log` has a lost-thread mark after the restored
+    position, that mark is cleared.  Returns (message, last_reply), where
+    last_reply is the engine move still on the board (for 'repeat'), or None.
+
+    If the player has not yet moved, the board is left as it is and the
+    message is 'Nothing to take back.'
+    """
+    start, moves = _replay(board)
+    last_player_idx = None
+    cursor = start.copy()
+    for i, move in enumerate(moves):
+        if cursor.turn == player:
+            last_player_idx = i
+        cursor.push(move)
+    if last_player_idx is None:
+        return "Nothing to take back.", last_engine_reply(board, player)
+
+    before = start.copy()
+    for move in moves[:last_player_idx]:
+        before.push(move)
+    player_desc = _plain_move(describe_move(before, moves[last_player_idx]))
+    engine_desc = None
+    if last_player_idx + 1 < len(moves):
+        after_player = before.copy()
+        after_player.push(moves[last_player_idx])
+        engine_desc = _plain_move(describe_move(after_player, moves[last_player_idx + 1]))
+
+    while len(board.move_stack) > last_player_idx:
+        board.pop()
+
+    if log is not None and log.get("lost_mark") is not None and log["lost_mark"] > board.fullmove_number:
+        log["lost_mark"] = None
+
+    your = _as_spoken(player_desc)
+    if engine_desc:
+        message = (f"Taken back. Your move {your} and my reply "
+                   f"{_as_spoken(engine_desc)} are undone.")
+    else:
+        message = f"Taken back. Your move {your} is undone."
+    reply = last_engine_reply(board, player)
+    if reply:
+        message += f" My last move was {_as_spoken(reply)}."
+    message += " Your move."
+    return message, reply
+
+
+def set_engine_level(engine, level):
+    """Retarget a running engine, including the stand-in used in tests."""
+    setter = getattr(engine, "set_level", None)
+    if callable(setter):
+        setter(level)
+    elif hasattr(engine, "level"):
+        engine.level = level
+    return engine
+
+
+def apply_level_command(ui, s, text, engine=None, player_has_moved=False):
+    """Handle 'level 4' / 'set level four' / 'change level to 4'.
+
+    Before the first move, or between games, the new level is used at once.
+    After the player has moved, it is saved for the next game and this game
+    stays at its current level.  Returns the new game level if this game
+    should change, otherwise None.
+    """
+    requested = parse_level_command(text)
+    if requested is None:
+        return None
+    if requested == "invalid":
+        ui.say("Please say a level from 1 to 8.")
+        return None
+    if player_has_moved:
+        s["level"] = requested
+        config.save(s)
+        ui.say(f"Level {requested} from your next game.")
+        return None
+    s["level"] = requested
+    config.save(s)
+    if engine is not None:
+        set_engine_level(engine, requested)
+    ui.say(f"Engine level {requested}, about {level_rating(requested)}.")
+    return requested
 
 
 def play(ui, s, engine_path, setup=False, quick=None):
@@ -362,24 +649,25 @@ def play(ui, s, engine_path, setup=False, quick=None):
             start_fen = saved_start_fen(s)
 
         board = chess.Board(start_fen)
-        engine = Engine(engine_path, s["level"])
+        game_level = s["level"]
+        engine = Engine(engine_path, game_level)
         limit, used = s["position_limit"], 0
         last_reply = None
         result = termination = None
         # For the after-game report: what went wrong, and when
-        log = {"illegal": [], "requests": [], "lost_mark": None}
+        log = {"illegal": [], "requests": [], "lost_mark": None, "takebacks": 0}
         reminded = set()
         player_has_moved = False
         restart = False
         milestones.recompute()
 
-        opening = f"You're {colour.capitalize()}, level {s['level']}, {limit_words(limit)}."
+        opening = f"You're {colour.capitalize()}, level {game_level}, {limit_words(limit)}."
         if board.turn == player:
             opening += " Your move."
         ui.say(opening)
         if start_fen != chess.STARTING_FEN:
             ui.say("Here is the starting position. " + describe_position(board))
-        print_status(board, player, s["level"], limit, used)
+        print_status(board, player, game_level, limit, used, takebacks=log["takebacks"])
         try:
             while True:
                 outcome = board.outcome(claim_draw=True)
@@ -387,6 +675,25 @@ def play(ui, s, engine_path, setup=False, quick=None):
                     result = outcome.result()
                     termination = outcome.termination.name.replace("_", " ").capitalize()  # e.g. "Checkmate"
                     ui.say(describe_outcome(outcome, player))
+                    if player_has_moved:
+                        ui.help_context = "during"
+                        ui.help_requests_left = "unlimited" if limit < 0 else max(0, limit - used)
+                        heard = ui.hear("If that wasn't the move you meant, say take back. "
+                                        "Otherwise press Enter to finish:")
+                        if ui.listener:
+                            print(f"  (I heard: {heard or 'nothing'})")
+                        if special_command(heard) == "take back":
+                            message, last_reply = take_back(board, player, log)
+                            if message.startswith("Nothing"):
+                                ui.say(message)
+                            else:
+                                log["takebacks"] += 1
+                                player_has_moved = player_move_count(board, player) > 0
+                                result = termination = None
+                                ui.say(message)
+                                print_status(board, player, game_level, limit, used,
+                                             takebacks=log["takebacks"])
+                                continue
                     break
 
                 if board.turn != player:                         # 4. the engine replies
@@ -394,21 +701,37 @@ def play(ui, s, engine_path, setup=False, quick=None):
                     last_reply = describe_move(board, move)
                     board.push(move)
                     ui.say(last_reply + ".")                     # 5. text to speech
-                    print_status(board, player, s["level"], limit, used)
+                    print_status(board, player, game_level, limit, used, takebacks=log["takebacks"])
                     continue
 
                 if s.get("checkpoint_reminders", True) and checkpoint_due(board, player, reminded):
                     reminded.add(board.fullmove_number)
                     ui.say(CHECKPOINT)
 
+                ui.help_context = "before" if not player_has_moved else "during"
+                ui.help_requests_left = "unlimited" if limit < 0 else max(0, limit - used)
                 heard = ui.hear("Your move:")                    # 1. listen, 2. speech to text
                 if ui.listener:
                     print(f"  (I heard: {heard or 'nothing'})")
 
                 cmd = session_command(heard)
                 if cmd:
+                    if cmd == "help":
+                        print_help(ui.help_context, ui.help_requests_left)
+                        continue
                     if cmd == "progress":
                         show_progress(ui)
+                        continue
+                    if cmd == "rating":
+                        ui.say(ratings.spoken_rating(ratings.read_games(config.RATING_LOG)))
+                        continue
+                    if cmd == "level":
+                        changed = apply_level_command(
+                            ui, s, heard, engine=engine, player_has_moved=player_has_moved)
+                        if changed is not None:
+                            game_level = changed
+                        print_status(board, player, game_level, limit, used,
+                                     takebacks=log["takebacks"])
                         continue
                     if cmd in ("drill", "reset-rating"):
                         if player_has_moved:
@@ -418,7 +741,7 @@ def play(ui, s, engine_path, setup=False, quick=None):
                             run_square_drill(ui)
                         else:
                             reset_rating(ui)
-                        print_status(board, player, s["level"], limit, used)
+                        print_status(board, player, game_level, limit, used, takebacks=log["takebacks"])
                         continue
                     if player_has_moved:
                         ui.say("You can only change that before your first move. Your move.")
@@ -453,10 +776,19 @@ def play(ui, s, engine_path, setup=False, quick=None):
                     ui.say(describe_move(board, r.move) + ".")
                     board.push(r.move)
                     player_has_moved = True
-                    print_status(board, player, s["level"], limit, used)
+                    print_status(board, player, game_level, limit, used, takebacks=log["takebacks"])
                 elif r.command == "repeat":
                     ui.say(f"My last move was {last_reply[0].lower() + last_reply[1:]}." if last_reply
                            else "I haven't made a move yet.")
+                elif r.command == "last move":
+                    ui.say(last_moves_spoken(board, player))
+                elif r.command == "level":
+                    changed = apply_level_command(
+                        ui, s, heard, engine=engine, player_has_moved=player_has_moved)
+                    if changed is not None:
+                        game_level = changed
+                    print_status(board, player, game_level, limit, used,
+                                 takebacks=log["takebacks"])
                 elif r.command == "position":
                     if limit < 0 or used < limit:
                         used += 1
@@ -464,7 +796,7 @@ def play(ui, s, engine_path, setup=False, quick=None):
                         ui.say(describe_position(board))
                         if limit >= 0:
                             ui.say(f"That was position request {used} of {limit}.")
-                        print_status(board, player, s["level"], limit, used)
+                        print_status(board, player, game_level, limit, used, takebacks=log["takebacks"])
                     else:
                         ui.say(f"I'm sorry, you have used all {limit} of your position requests for this game. "
                                "Try to rebuild the position in your mind, then tell me your move.")
@@ -476,12 +808,18 @@ def play(ui, s, engine_path, setup=False, quick=None):
                     else:
                         ui.say(f"I've already noted that you first lost the thread at move {log['lost_mark']}, "
                                "so I'll keep that. Your move when you're ready.")
+                elif r.command == "take back":
+                    message, last_reply = take_back(board, player, log)
+                    if not message.startswith("Nothing"):
+                        log["takebacks"] += 1
+                        player_has_moved = player_move_count(board, player) > 0
+                        print_status(board, player, game_level, limit, used,
+                                     takebacks=log["takebacks"])
+                    ui.say(message)
                 elif r.command == "help":
-                    left = "unlimited" if limit < 0 else str(limit - used)
-                    ui.say(HELP + f" Position requests left: {left}.")
+                    print_help(ui.help_context, ui.help_requests_left)
                 elif r.command == "rating":
-                    for line in ratings.report(ratings.read_games(config.RATING_LOG)):
-                        ui.say(line)
+                    ui.say(ratings.spoken_rating(ratings.read_games(config.RATING_LOG)))
                 elif r.command == "progress":
                     show_progress(ui)
                 elif r.command == "square drill":
@@ -489,13 +827,13 @@ def play(ui, s, engine_path, setup=False, quick=None):
                         ui.say("You can only do that before your first move, or between games. Your move.")
                     else:
                         run_square_drill(ui)
-                        print_status(board, player, s["level"], limit, used)
+                        print_status(board, player, game_level, limit, used, takebacks=log["takebacks"])
                 elif r.command == "reset rating":
                     if player_has_moved:
                         ui.say("You can only do that before your first move, or between games. Your move.")
                     else:
                         reset_rating(ui)
-                        print_status(board, player, s["level"], limit, used)
+                        print_status(board, player, game_level, limit, used, takebacks=log["takebacks"])
                 elif r.command == "resign":
                     if ui.yes_no("Do you really want to resign?"):
                         result = "0-1" if player == chess.WHITE else "1-0"
@@ -521,7 +859,8 @@ def play(ui, s, engine_path, setup=False, quick=None):
             continue
         break
 
-    finish(ui, s, board, start_fen, player, result, termination, used, log, engine_path)
+    finish(ui, s, board, start_fen, player, result, termination, used, log, engine_path,
+           game_level=game_level)
 
 
 def describe_outcome(outcome, player):
@@ -551,6 +890,7 @@ def lost_thread_question(ui, marked=None, illegal=()):
         n = parse_number(text)
         return str(n) if n is not None and n > 0 else None
 
+    ui.help_context, ui.help_requests_left = "review", None
     plain = ("At which move did you first lose the thread of the position? "
              "Say the move number, or 'never'.")
     if marked:
@@ -603,6 +943,7 @@ def slip_review(ui, board, player, engine_path):
     Returns {"quality": ..., "slips": [...]}, or None if not done."""
     if not engine_path or not board.move_stack:
         return None
+    ui.help_context, ui.help_requests_left = "review", None
     if not ui.yes_no("Would you like me to look through the game for the two or three biggest slips?"):
         return None
     ui.say("I'm looking through the game now. This may take a little while.")
@@ -656,6 +997,7 @@ def wants_review(ui):
         if is_no(words):
             return False
         return None
+    ui.help_context, ui.help_requests_left = "after", None
     return ui.ask("Say review for the after-game review, or press Enter to carry on.",
                   understand, "Review, or press Enter?")
 
@@ -677,8 +1019,9 @@ def _apply_review_data(headers, row, reconstruction, looked):
 
 
 def finish(ui, s, board, start_fen, player, result, termination, used, log=None, engine_path=None,
-           quick=False):
+           quick=False, game_level=None):
     log = log or {}
+    level = game_level if game_level is not None else s["level"]
     illegal, requests = log.get("illegal", []), log.get("requests", [])
     now = datetime.datetime.now()
     score = {"1-0": 1.0, "0-1": 0.0}.get(result, 0.5)
@@ -689,7 +1032,7 @@ def finish(ui, s, board, start_fen, player, result, termination, used, log=None,
     # Save the PGN straight away, so that nothing below can lose the game.
     # The after-game review is offered afterwards; if the player takes it,
     # the file and the rating-log row are updated in place.
-    engine_name = f"The Different Engine, {level_name(s['level'])}"
+    engine_name = f"The Different Engine, {level_name(level)}"
     headers = {
         "Event": "Blindfold game", "Site": "The Different Engine", "Date": now.strftime("%Y.%m.%d"),
         "Round": "-", "White": "Player" if player == chess.WHITE else engine_name,
@@ -698,6 +1041,7 @@ def finish(ui, s, board, start_fen, player, result, termination, used, log=None,
         "PositionRequests": str(used), "FirstLostThread": "never",
         "PositionRequestMoves": ", ".join(str(n) for n in requests) or "-",
         "IllegalAttempts": illegal_header(illegal),
+        "Takebacks": str(log.get("takebacks", 0)),
     }
     if log.get("lost_mark"):
         headers["LostThreadMarked"] = str(log["lost_mark"])
@@ -705,18 +1049,19 @@ def finish(ui, s, board, start_fen, player, result, termination, used, log=None,
         headers["SetUp"], headers["FEN"] = "1", board.root().fen()
 
     os.makedirs(config.GAMES_DIR, exist_ok=True)
-    base = f"{now:%Y-%m-%d_%H%M}_{'white' if player else 'black'}_level{s['level']}"
+    base = f"{now:%Y-%m-%d_%H%M}_{'white' if player else 'black'}_level{level}"
     path = os.path.join(config.GAMES_DIR, base + ".pgn")
     n = 2
     while os.path.exists(path):
         path = os.path.join(config.GAMES_DIR, f"{base}_{n}.pgn")
         n += 1
     pgn_text = save_pgn(path, board, headers)
-    ui.say(f"I've saved the game in the games folder, in a file called {os.path.basename(path)}.")
+    ui.say("Game saved in your games folder.")
+    print(f"  Full location of the game: {path}")
 
-    opponent = f"Stockfish level {s['level']}"
+    opponent = ratings.opponent_name(level)
     row = {
-        "Date": now.strftime("%Y-%m-%d"), "Opponent": opponent, "Opponent rating": level_rating(s["level"]),
+        "Date": now.strftime("%Y-%m-%d"), "Opponent": opponent, "Opponent rating": level_rating(level),
         "Colour": "White" if player == chess.WHITE else "Black", "Time control": "untimed",
         "Result": score_text, "First lost thread": "", "Rule breaks": "", "Notes": "",
         "Position requests": used, "How it ended": termination,
@@ -725,12 +1070,23 @@ def finish(ui, s, board, start_fen, player, result, termination, used, log=None,
         "Illegal attempts": len(illegal),
         "Illegal attempt moves": ", ".join(str(a["move"]) for a in illegal),
         "Position request moves": ", ".join(str(n) for n in requests),
+        "Takebacks": log.get("takebacks", 0),
     }
     ratings.append_game(config.RATING_LOG, row)
 
-    for line in ratings.report(ratings.read_games(config.RATING_LOG), opponent):
+    games = ratings.read_games(config.RATING_LOG)
+    for line in ratings.report(games, opponent):
         ui.say(line)
     print(f"  (Your rating log is in {config.RATING_LOG}; it opens in any spreadsheet.)\n")
+
+    # Auto level-up applies only if the player has not already chosen a
+    # different level for the next game.
+    if s["level"] == level:
+        new_level, message = ratings.maybe_level_up(games, level)
+        if new_level:
+            s["level"] = new_level
+            config.save(s)
+            ui.say(message)
 
     # --quick used to skip the extras; a plain start now does the same unless
     # the player asks for a review.  The quick flag is kept only as a no-op.

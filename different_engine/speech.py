@@ -170,21 +170,76 @@ def grammar_phrases():
         "castles king side", "castles queen side", "castle king side", "castle queen side",
         "castles short", "castles long", "king side castle", "queen side castle",
         "takes en passant", "repeat", "say again", "position", "position please", "resign",
-        "draw", "offer draw", "help", "rating", "yes", "no", "white", "black", "random",
+        "draw", "offer draw", "help", "commands", "what can i say",
+        "rating", "yes", "no", "white", "black", "random",
         "usual", "custom", "keep", "change", "never", "stop", "unlimited", "level",
         "lost thread", "lost the thread",
+        "take back", "undo", "go back", "take that back",
+        "last move", "last moves", "what was the last move",
+        "say last move", "what did you play",
+        "my rating", "what is my rating",
+        "progress", "milestones", "my milestones", "how am i doing",
+        "achievements", "progress report", "process", "congress",
+        "pro gress", "prog ress", "progres",
+        "light", "dark", "light square", "dark square",
+        "lite", "lights", "darke", "dark one", "light one",
         "chess", "visualisation", "visualization", "not sure", "skip",
     }
     for word, value in NUMBER_WORDS.items():
         if word not in ("won", "too", "for", "ate", "nought"):
             phrases.add(word)
             phrases.add(f"level {word}")
+    for word in ("one", "two", "three", "four", "five", "six", "seven", "eight"):
+        phrases.add(f"set level {word}")
+        phrases.add(f"change level {word}")
+        phrases.add(f"change level to {word}")
+        phrases.add(f"level to {word}")
     for tens in ("twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"):
         for unit in ("one", "two", "three", "four", "five", "six", "seven", "eight", "nine"):
             phrases.add(f"{tens} {unit}")
     words_used = {w for p in phrases for w in p.split()}
     assert words_used <= set(vocabulary()), words_used - set(vocabulary())
     return sorted(phrases) + ["[unk]"]
+
+
+def speech_start_offset(result):
+    """Seconds from the start of the recognised audio to the first word, or None.
+
+    Vosk word times (from SetWords(True)) are relative to the audio stream
+    fed to that recogniser.
+    """
+    words = result.get("result") or []
+    starts = [w["start"] for w in words if isinstance(w, dict) and "start" in w]
+    return min(starts) if starts else None
+
+
+def utterance_duration(result):
+    """Duration of the words in a Vosk result, or None if there are no word times."""
+    words = result.get("result") or []
+    starts = [w["start"] for w in words if isinstance(w, dict) and "start" in w]
+    ends = [w["end"] for w in words if isinstance(w, dict) and "end" in w]
+    if starts and ends:
+        return max(0.0, max(ends) - min(starts))
+    return None
+
+
+def thinking_seconds(pre_mic, first_word_start=None, result_arrived=None,
+                     mic_started=None, duration=None):
+    """Thinking time from the start of a listen to when the player began to answer.
+
+    Prefer the first word's start in the audio stream (so end-of-utterance
+    detection is excluded).  If word times are missing, subtract the
+    utterance duration from the moment the result arrived.
+    """
+    pre_mic = max(0.0, float(pre_mic or 0.0))
+    if first_word_start is not None:
+        return max(0.0, pre_mic + float(first_word_start))
+    if result_arrived is not None and mic_started is not None:
+        elapsed = float(result_arrived) - float(mic_started)
+        if duration is not None:
+            return max(0.0, pre_mic + elapsed - float(duration))
+        return max(0.0, pre_mic + elapsed)
+    return pre_mic
 
 
 class VoiceInput:
@@ -206,6 +261,7 @@ class VoiceInput:
         self.grammar = json.dumps(grammar_phrases())
         self.device = device
         self.hands_free = hands_free
+        self.last_thinking_seconds = 0.0
         try:
             info = sd.query_devices(device, "input")
         except Exception as exc:
@@ -219,21 +275,52 @@ class VoiceInput:
         rec.AcceptWaveform(audio_bytes)
         return _clean(json.loads(rec.FinalResult()).get("text", ""))
 
-    def listen(self, prompt="Press Enter, then speak (or type it here): ", timeout=10):
-        """Wait for the player, then return the words they said ("" if nothing)."""
+    def listen(self, prompt="Press Enter, then speak (or type it here): ", timeout=10, clock=None):
+        """Wait for the player, then return the words they said ("" if nothing).
+
+        Sets `last_thinking_seconds` to the time from the start of listening
+        to when the player began to answer (typed Enter, or the first word
+        in the recognised audio).  Recognition delay after the utterance,
+        and the pause used to decide that the player has finished, are not
+        counted.
+        """
+        clock = clock or time.monotonic
+        self.last_thinking_seconds = 0.0
+        started = clock()
         if not self.hands_free:
             typed = input(prompt)
             if typed.strip():
+                self.last_thinking_seconds = max(0.0, clock() - started)
                 return typed            # they typed instead of speaking: that's fine too
+        pre_mic = max(0.0, clock() - started)
         print("  Listening...")
         rec = self.vosk.KaldiRecognizer(self.model, self.rate, self.grammar)
+        try:
+            rec.SetWords(True)
+        except Exception:
+            pass
         audio = queue.Queue()
 
         def callback(indata, frames, when, status):
             audio.put(bytes(indata))
 
         heard, last_word_time, speaking = [], None, False
-        start = time.time()
+        first_word_start = None
+        duration = None
+        result_arrived = None
+        mic_started = clock()
+        listen_start = mic_started
+
+        def note(payload):
+            nonlocal first_word_start, duration, result_arrived
+            result_arrived = clock()
+            start = speech_start_offset(payload)
+            if start is not None and first_word_start is None:
+                first_word_start = start
+            dur = utterance_duration(payload)
+            if dur is not None and duration is None:
+                duration = dur
+
         with self.sd.RawInputStream(samplerate=self.rate, blocksize=self.rate // 8, device=self.device,
                                     dtype="int16", channels=1, callback=callback):
             while True:
@@ -243,20 +330,32 @@ class VoiceInput:
                     data = None
                 if data is not None:
                     if rec.AcceptWaveform(data):
-                        text = _clean(json.loads(rec.Result()).get("text", ""))
+                        payload = json.loads(rec.Result())
+                        text = _clean(payload.get("text", ""))
                         if text:
                             heard.append(text)
-                            last_word_time = time.time()
+                            last_word_time = clock()
+                            note(payload)
                         speaking = False
                     else:
                         speaking = bool(_clean(json.loads(rec.PartialResult()).get("partial", "")))
-                now = time.time()
+                now = clock()
                 # Allow a short pause mid-move ("knight ... f3") before finishing.
                 if heard and not speaking and now - last_word_time > 1.0:
                     break
-                if not self.hands_free and now - start > (timeout if not heard and not speaking else 20):
-                    heard.append(_clean(json.loads(rec.FinalResult()).get("text", "")))
+                if not self.hands_free and now - listen_start > (timeout if not heard and not speaking else 20):
+                    payload = json.loads(rec.FinalResult())
+                    text = _clean(payload.get("text", ""))
+                    if text:
+                        heard.append(text)
+                        note(payload)
+                    elif result_arrived is None:
+                        result_arrived = clock()
                     break
+        if not heard and result_arrived is None:
+            result_arrived = clock()
+        self.last_thinking_seconds = thinking_seconds(
+            pre_mic, first_word_start, result_arrived, mic_started, duration)
         return " ".join(heard)
 
 

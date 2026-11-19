@@ -42,6 +42,12 @@ class Engine:
         _, options, self.limit = LEVELS[level]
         self.engine.configure(self._fit(options))
 
+    def set_level(self, level):
+        """Retarget an already-started engine to another of the eight levels."""
+        self.level = level
+        _, options, self.limit = LEVELS[level]
+        self.engine.configure(self._fit(options))
+
     def _fit(self, options):
         """Keep each setting within what this version of Stockfish accepts."""
         fitted = {}

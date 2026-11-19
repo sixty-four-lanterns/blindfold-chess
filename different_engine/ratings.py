@@ -21,10 +21,14 @@ COLUMNS = [
     "Illegal attempts", "Illegal attempt moves", "Position request moves",
     "Reconstruction", "Reconstruction per cent", "Average centipawn loss",
     "Engine matches", "Slips",
+    # added later: take-backs when a move was undone (usually a mishearing)
+    "Takebacks",
 ]
 WINDOW = 30           # rolling window size
 MIN_GAMES = 20        # fewer than this: the figure is only a guide
 GOOD_GAMES = 30       # "preferably thirty"
+LEVEL_UP_GAMES = 5    # consecutive-at-this-level games needed to move up
+LEVEL_UP_SCORE = 0.7  # more than 70 per cent
 
 CAUTIONS = (
     "Two cautions. The ratings given to engine levels are rough estimates, and they "
@@ -154,6 +158,16 @@ def performance(games):
             "average": round(average), "performance": round(perf), "score": score}
 
 
+def spoken_rating(games):
+    """A short spoken reading, e.g. 'Your blindfold rating is 1233 from 14 games.'"""
+    window = recent(games)
+    p = performance(window)
+    if not p:
+        return "There are no games in your rating log yet."
+    noun = "game" if p["games"] == 1 else "games"
+    return f"Your blindfold rating is {p['performance']} from {p['games']} {noun}."
+
+
 def report(games, current_opponent=None):
     """The gauge reading as a list of plain-English sentences."""
     if not games:
@@ -179,14 +193,52 @@ def report(games, current_opponent=None):
         if len(at_level) >= 3:
             score = performance(at_level)["score"]
             percent = round(score * 100)
-            if score > 0.7:
-                lines.append(f"You have scored {percent} per cent against {current_opponent}. "
-                             "Try moving the engine up a level, so that you score between about 30 and 70 per cent.")
-            elif score < 0.3:
+            # Moving up is automatic once five games at this level are over 70 per
+            # cent (see maybe_level_up).  Only the 'too hard' suggestion remains here.
+            if score < 0.3:
                 lines.append(f"You have scored {percent} per cent against {current_opponent}. "
                              "Try moving the engine down a level, so that you score between about 30 and 70 per cent.")
     lines.append(CAUTIONS)
     return lines
+
+
+def opponent_name(level):
+    """The 'Opponent' value written for a game at this engine level."""
+    return f"Stockfish level {level}"
+
+
+def games_at_level(games, level):
+    """Rated games played at this engine level, in log order."""
+    name = opponent_name(level)
+    return [g for g in games if g.get("opponent") == name]
+
+
+def maybe_level_up(games, level):
+    """Move up one level if the last five games at this level scored over 70 per cent.
+
+    All five must be at this level; games at other levels are ignored, and
+    take-back games still count (they are ordinary rated games).  Level 8 is
+    the maximum, so nothing happens there.  After a move-up the new level
+    starts with a fresh count, because it does not yet have five games.
+
+    Returns (new_level, message) or (None, None).
+    """
+    try:
+        level = int(level)
+    except (TypeError, ValueError):
+        return None, None
+    if level >= 8 or level < 1:
+        return None, None
+    at_level = games_at_level(games, level)
+    if len(at_level) < LEVEL_UP_GAMES:
+        return None, None
+    recent_five = at_level[-LEVEL_UP_GAMES:]
+    if performance(recent_five)["score"] <= LEVEL_UP_SCORE:
+        return None, None
+    new_level = level + 1
+    message = (f"You scored over 70 per cent in your last five games at level {level}, "
+               f"so I've moved the engine up to level {new_level}.")
+    return new_level, message
 
 
 def archive_and_reset(path, today=None):

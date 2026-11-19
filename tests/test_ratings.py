@@ -42,8 +42,10 @@ def test_report_guide_and_cautions():
 
 
 def test_report_suggests_level_change():
-    up = " ".join(ratings.report(make([(1200, [1, 1, 1, 1])]), "Level 1200"))
-    assert "up a level" in up
+    # Moving up is automatic (maybe_level_up); the report must not also suggest it.
+    up = " ".join(ratings.report(make([(1200, [1, 1, 1, 1, 1])]), "Level 1200"))
+    assert "up a level" not in up
+    assert "moved the engine up" not in up
     down = " ".join(ratings.report(make([(1200, [0, 0, 0, 0])]), "Level 1200"))
     assert "down a level" in down
     fine = " ".join(ratings.report(make([(1200, [1, 0, 0.5, 1])]), "Level 1200"))
@@ -151,3 +153,62 @@ def test_archive_and_reset(tmp_path):
     assert (tmp_path / "rating_log_archived_2026-11-19.csv").exists()
     assert ratings.read_games(tmp_path / "rating_log_archived_2026-11-19.csv")[0]["result"] == 1.0
     assert ratings.archive_and_reset(path) is None
+
+
+def test_spoken_rating():
+    assert ratings.spoken_rating([]) == "There are no games in your rating log yet."
+    games = [{"opponent": "x", "rating": 1200, "result": 1.0}]
+    assert ratings.spoken_rating(games) == "Your blindfold rating is 1600 from 1 game."
+    results = [1] * 11 + [0.5] * 4 + [0] * 9
+    games = [{"opponent": "x", "rating": (1100, 1200, 1300)[i % 3], "result": r}
+             for i, r in enumerate(results)]
+    # book's 24-game example: average 1200, 11 wins, 4 draws, 9 losses -> 1233
+    assert ratings.spoken_rating(games) == "Your blindfold rating is 1233 from 24 games."
+
+
+
+def at_level(level, results, rating=None):
+    from different_engine.engine import level_rating
+    rating = level_rating(level) if rating is None else rating
+    return [{"opponent": ratings.opponent_name(level), "rating": rating, "result": r}
+            for r in results]
+
+
+def test_maybe_level_up_needs_five_games_over_seventy_percent():
+    # 4 wins is not enough
+    assert ratings.maybe_level_up(at_level(3, [1, 1, 1, 1]), 3) == (None, None)
+    # 3 wins, 1 draw, 1 loss = 70 per cent, not more than 70
+    assert ratings.maybe_level_up(at_level(3, [1, 1, 1, 0.5, 0]), 3) == (None, None)
+    # 4 wins and 1 loss = 80 per cent
+    new, message = ratings.maybe_level_up(at_level(3, [1, 1, 1, 1, 0]), 3)
+    assert new == 4
+    assert message == ("You scored over 70 per cent in your last five games at level 3, "
+                       "so I've moved the engine up to level 4.")
+    # 3 wins and 2 draws = 80 per cent
+    assert ratings.maybe_level_up(at_level(3, [1, 1, 1, 0.5, 0.5]), 3)[0] == 4
+    # 5 wins
+    assert ratings.maybe_level_up(at_level(3, [1, 1, 1, 1, 1]), 3)[0] == 4
+
+
+def test_maybe_level_up_uses_only_last_five_at_that_level():
+    # An earlier loss at the same level is outside the last five
+    games = at_level(3, [0, 1, 1, 1, 1, 1])
+    assert ratings.maybe_level_up(games, 3)[0] == 4
+    # A game at another level does not fill the five
+    mixed = at_level(3, [1, 1, 1, 1]) + at_level(2, [1])
+    assert ratings.maybe_level_up(mixed, 3) == (None, None)
+    # After a move-up, the new level has a fresh count
+    after = at_level(3, [1, 1, 1, 1, 1])  # would go to 4
+    new, _ = ratings.maybe_level_up(after, 3)
+    assert new == 4
+    assert ratings.maybe_level_up(after, 4) == (None, None)
+
+
+def test_maybe_level_up_stays_at_level_eight():
+    assert ratings.maybe_level_up(at_level(8, [1, 1, 1, 1, 1]), 8) == (None, None)
+
+
+def test_maybe_level_up_counts_games_with_takebacks():
+    # Take-back games are ordinary rated games; they still count
+    games = at_level(2, [1, 1, 1, 1, 1])
+    assert ratings.maybe_level_up(games, 2)[0] == 3

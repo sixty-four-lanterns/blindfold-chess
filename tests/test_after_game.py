@@ -114,10 +114,10 @@ def test_whole_game_and_report(setup, monkeypatch):
     assert "Your blindfold performance rating is" in said
     assert "Say review for the after-game review" in said
     # saved and the rating are spoken before the reconstruction test
-    assert said.index("I've saved the game") < said.index("Say review for the after-game review")
+    assert said.index("Game saved in your games folder.") < said.index("Say review for the after-game review")
     assert said.index("Your blindfold performance rating is") < said.index("You placed 31 of 32")
     # the final position isn't shown before the reconstruction test
-    assert said.index("I've saved the game") < said.index("You placed 31 of 32")
+    assert said.index("Game saved in your games folder.") < said.index("You placed 31 of 32")
 
     headers = read_pgn(tmp_path).headers
     assert headers["FirstLostThread"] == "3" and headers["LostThreadMarked"] == "3"
@@ -214,9 +214,9 @@ def test_default_play_skips_start_and_skips_review_if_declined(setup):
     assert "reconstruct" not in said.lower()
     assert "biggest slips" not in said
     assert "read the moves" not in said
-    assert "I've saved the game" in said
+    assert "Game saved in your games folder." in said
     assert "Your blindfold performance rating is" in said
-    assert said.index("I've saved the game") < said.index("Say review for the after-game review")
+    assert said.index("Game saved in your games folder.") < said.index("Say review for the after-game review")
     assert said.index("Your blindfold performance rating is") < said.index("Say review for the after-game review")
 
     headers = read_pgn(tmp_path).headers
@@ -245,7 +245,7 @@ def test_finish_skips_review_but_saves_and_rates(setup):
     game.finish(game.Interface(speaker), s, board, chess.STARTING_FEN, chess.WHITE, "1/2-1/2",
                 "Draw agreed", 1, log, engine_path=None)
     said = "\n".join(speaker.said)
-    assert "I've saved the game" in said
+    assert "Game saved in your games folder." in said
     assert "Your blindfold performance rating is" in said
     assert "Say review for the after-game review" in said
     assert "lose the thread" not in said
@@ -274,7 +274,7 @@ def test_default_play_uses_saved_custom_start(setup):
     said = "\n".join(speaker.said)
     assert "Shall we start from the usual opening position" not in said
     assert "Here is the starting position" in said
-    assert "I've saved the game" in said
+    assert "Game saved in your games folder." in said
     headers = read_pgn(tmp_path).headers
     assert headers.get("SetUp") == "1"
     assert "4k3" in headers["FEN"]
@@ -429,15 +429,21 @@ def test_play_black_before_first_move_saves_and_restarts(setup, monkeypatch):
     assert row["Result"] == "0"
 
 
-def test_switch_colours_and_settings_help_mentioned(setup, monkeypatch):
+def test_switch_colours_and_settings_help_mentioned(setup, monkeypatch, capsys):
     monkeypatch.setattr(game, "Engine", FlexibleEngine)
     speaker, script, tmp_path = setup
     s = dict(config.DEFAULTS, colour="white", level=3)
     script(["help", "switch colours", "resign", "yes", ""])
     game.play(game.Interface(speaker), s, "/fake/stockfish")
     said = "\n".join(speaker.said)
-    assert "play white, play black, switch colours, or random" in said
-    assert "square drill" in said and "progress" in said and "reset rating" in said
+    out = capsys.readouterr().out
+    assert "Now available -- During a game" in out
+    assert "Now available -- Before your first move, or between games" in out
+    assert "play white / play black / switch colours / random" in out
+    assert "square drill" in out and "progress" in out and "reset rating" in out
+    assert "Position requests left:" in out
+    assert "Now available" not in said
+    assert "play white / play black / switch colours / random" not in said
     assert "You'll play black." in said
     assert "You're Black, level 3," in said
     assert s["colour"] == "black"
@@ -486,7 +492,7 @@ def test_setup_flag_asks_for_start_position(setup):
     game.play(game.Interface(speaker), s, "/fake/stockfish", setup=True)
     said = "\n".join(speaker.said)
     assert "Shall we start from the usual opening position" in said
-    assert "I've saved the game" in said
+    assert "Game saved in your games folder." in said
 
 
 def test_review_updates_pgn_and_log_without_duplicating_row(setup, monkeypatch):
@@ -550,7 +556,11 @@ def test_format_status_with_and_without_rating(tmp_path, monkeypatch):
                     "Blindfold rating: 1600 (1 game) | Milestones 0/22")
     line = game.format_status(board, chess.WHITE, 2, 3, 0, games=[], milestones_count=(9, 22))
     assert line.endswith("| Milestones 9/22")
+    assert "Take-backs" not in line
     assert "eval" not in line.lower() and "board" not in line.lower()
+    with_tb = game.format_status(board, chess.WHITE, 2, 3, 0, games=[], milestones_count=(9, 22), takebacks=2)
+    assert with_tb.endswith("| Take-backs: 2")
+    assert with_tb.startswith("Move 1 | You: White | Level 2 |")
 
 
 def test_session_command_phrases():
@@ -561,11 +571,24 @@ def test_session_command_phrases():
     assert game.session_command("square colors") == "drill"
     assert game.session_command("progress") == "progress"
     assert game.session_command("my progress") == "progress"
+    assert game.session_command("milestones") == "progress"
+    assert game.session_command("how am I doing") == "progress"
+    assert game.session_command("process") == "progress"
+    assert game.session_command("rating") == "rating"
+    assert game.session_command("my rating") == "rating"
+    assert game.session_command("what's my rating") == "rating"
+    assert game.session_command("take back") is None
     assert game.session_command("reset rating") == "reset-rating"
     assert game.session_command("reset my rating") == "reset-rating"
     assert game.session_command("reset the rating") == "reset-rating"
     assert game.session_command("play black") == "black"
     assert game.session_command("settings") == "settings"
+    assert game.session_command("help") == "help"
+    assert game.session_command("commands") == "help"
+    assert game.session_command("what can I say") == "help"
+    assert game.session_command("last move") is None
+    assert game.session_command("level 4") == "level"
+    assert game.session_command("set level four") == "level"
     assert game.session_command("e4") is None
 
 
@@ -646,3 +669,266 @@ def test_reset_rating_asks_and_can_be_declined(setup):
     assert str(result).endswith("rating_log_archived_2026-11-19.csv")
     assert not (tmp_path / "rating_log.csv").exists()
     assert "Your rating has been reset. Your old games are kept in rating_log_archived_2026-11-19.csv." in "\n".join(speaker.said)
+
+
+
+def test_format_help_marks_current_group_and_stays_compact():
+    text = game.format_help("during", requests_left=2)
+    lines = text.splitlines()
+    assert lines[0] == "Commands"
+    assert 1 < len(lines) <= 32
+    assert all(ord(ch) < 128 for ch in text)
+    assert "Now available -- During a game" in text
+    assert "Position requests left: 2" in text
+    assert "Now available -- Before your first move" not in text
+    assert "Before your first move, or between games" in text
+    assert "take back / undo / go back" in text
+    assert "last move" in text
+    assert "level 1 to 8" in text
+    assert "light / dark" in text
+    assert "visualisation" in text
+    assert "Also available at other times" in text
+
+    before = game.format_help("before", requests_left="unlimited")
+    assert "Now available -- During a game" in before
+    assert "Now available -- Before your first move, or between games" in before
+    assert "Position requests left: unlimited" in before
+
+    after = game.format_help("after")
+    assert "Now available -- After a game" in after
+    assert "review" in after
+    assert "Position requests left" not in after
+
+    drill = game.format_help("drill")
+    assert "Now available -- Square-colour drill" in drill
+    assert "light / dark" in drill
+
+
+def test_help_prints_list_and_is_not_spoken(setup, capsys):
+    speaker, script, tmp_path = setup
+    s = dict(config.DEFAULTS, colour="white", level=2, position_limit=3)
+    script(["help", "resign", "yes", ""])
+    game.play(game.Interface(speaker), s, "/fake/stockfish")
+    said = "\n".join(speaker.said)
+    out = capsys.readouterr().out
+    assert "Commands" in out
+    assert "Now available -- During a game" in out
+    assert "Now available -- Before your first move, or between games" in out
+    assert "Position requests left: 3" in out
+    assert "Now available" not in said
+    assert "Position requests left" not in said
+    assert "You resign" in said
+    (row,) = read_log(tmp_path)
+    assert int(row["Position requests"]) == 0
+
+
+def test_help_after_a_move_uses_during_context(setup, capsys):
+    speaker, script, tmp_path = setup
+    s = dict(config.DEFAULTS, colour="white", level=2, position_limit=3)
+    script(["e4", "help", "resign", "yes", ""])
+    game.play(game.Interface(speaker), s, "/fake/stockfish")
+    said = "\n".join(speaker.said)
+    out = capsys.readouterr().out
+    assert "Now available -- During a game" in out
+    assert "Now available -- Before your first move" not in out
+    assert "Position requests left: 3" in out
+    assert "Now available" not in said
+    (row,) = read_log(tmp_path)
+    assert int(row["Position requests"]) == 0
+
+
+def test_help_between_games_is_printed_not_spoken(setup, capsys):
+    speaker, script, tmp_path = setup
+    s = dict(config.DEFAULTS, colour="white", level=2, position_limit=3)
+    ui = game.Interface(speaker)
+    script(["resign", "yes", "", "what can I say", "no"])
+    game.play(ui, s, "/fake/stockfish")
+    assert game.between_games(ui) is False
+    said = "\n".join(speaker.said)
+    out = capsys.readouterr().out
+    assert "Now available -- Before your first move, or between games" in out
+    assert "Now available -- During a game" not in out or out.rfind("Now available -- Before your first move") > out.rfind("Now available -- During a game")
+    assert "Now available" not in said
+
+
+
+def test_last_moves_spoken_covers_each_history_case():
+    start = chess.Board()
+    assert game.last_moves_spoken(start, chess.WHITE) == "No moves yet."
+    assert game.last_moves_spoken(start, chess.BLACK) == "No moves yet."
+
+    # Player moved, engine has not replied
+    board = start.copy()
+    board.push_san("e4")
+    assert game.last_moves_spoken(board, chess.WHITE) == "Your last move was pawn to e4."
+
+    # Both sides have moved, player's turn
+    board.push_san("e5")
+    assert game.last_moves_spoken(board, chess.WHITE) == (
+        "Your last move was pawn to e4, and I played pawn to e5."
+    )
+
+    # After the player's latest move, before a reply: only the player's move
+    board.push_san("Nf3")
+    assert game.last_moves_spoken(board, chess.WHITE) == "Your last move was knight to f3."
+
+    # The wording from the command's example: Nf3, engine replies e5
+    example = chess.Board()
+    example.push_san("Nf3")
+    example.push_san("e5")
+    assert game.last_moves_spoken(example, chess.WHITE) == (
+        "Your last move was knight to f3, and I played pawn to e5."
+    )
+
+    # Engine moved first as White; the player (Black) has not moved
+    opening = chess.Board()
+    opening.push_san("e4")
+    assert game.last_moves_spoken(opening, chess.BLACK) == "I played pawn to e4."
+
+    # Player (Black) has answered, engine has not yet replied to that
+    opening.push_san("e5")
+    assert game.last_moves_spoken(opening, chess.BLACK) == "Your last move was pawn to e5."
+
+    # After a take-back, the wording follows the current history
+    after = chess.Board()
+    for san in ("e4", "e5", "Nf3"):
+        after.push_san(san)
+    message, _ = game.take_back(after, chess.WHITE)
+    assert message.startswith("Taken back.")
+    assert game.last_moves_spoken(after, chess.WHITE) == (
+        "Your last move was pawn to e4, and I played pawn to e5."
+    )
+    game.take_back(after, chess.WHITE)
+    assert game.last_moves_spoken(after, chess.WHITE) == "No moves yet."
+
+
+def test_last_move_command_in_play_does_not_use_a_request(setup):
+    speaker, script, tmp_path = setup
+    s = dict(config.DEFAULTS, colour="white", level=2, position_limit=3)
+    script(["last move", "e4", "last move", "repeat", "resign", "yes", ""])
+    game.play(game.Interface(speaker), s, "/fake/stockfish")
+    said = "\n".join(speaker.said)
+    assert "No moves yet." in said
+    assert "Your last move was pawn to e4, and I played pawn to e5." in said
+    assert "My last move was pawn to e5." in said
+    assert said.count("That was position request") == 0
+    (row,) = read_log(tmp_path)
+    assert int(row["Position requests"]) == 0
+
+
+def test_last_move_when_engine_opens_as_white(setup, monkeypatch):
+    monkeypatch.setattr(game, "Engine", FlexibleEngine)
+    speaker, script, tmp_path = setup
+    s = dict(config.DEFAULTS, colour="black", level=2, position_limit=2)
+    script(["what did you play", "resign", "yes", ""])
+    game.play(game.Interface(speaker), s, "/fake/stockfish")
+    said = "\n".join(speaker.said)
+    # FlexibleEngine plays the first legal move, which from the start is a2a3? 
+    # next(iter(board.legal_moves)) -- order is not guaranteed to be e4.
+    # Just check the "I played ..." form and no position request.
+    assert any(line.startswith("I played ") for line in speaker.said)
+    assert "No moves yet." not in said
+    (row,) = read_log(tmp_path)
+    assert int(row["Position requests"]) == 0
+
+
+
+def test_level_command_applies_immediately_before_first_move(setup):
+    import json
+    speaker, script, tmp_path = setup
+    s = dict(config.DEFAULTS, colour="white", level=2, position_limit=3)
+    script(["level 4", "resign", "yes", ""])
+    game.play(game.Interface(speaker), s, "/fake/stockfish")
+    said = "\n".join(speaker.said)
+    assert "Engine level 4, about 1400." in said
+    assert "Level 4 from your next game." not in said
+    assert s["level"] == 4
+    saved = json.loads((tmp_path / "settings.json").read_text())
+    assert saved["level"] == 4
+    (row,) = read_log(tmp_path)
+    assert row["Opponent"] == "Stockfish level 4"
+    assert int(row["Position requests"]) == 0
+
+
+def test_level_command_after_a_move_waits_until_next_game(setup):
+    import json
+    speaker, script, tmp_path = setup
+    s = dict(config.DEFAULTS, colour="white", level=2, position_limit=3)
+    script(["e4", "change level to 5", "resign", "yes", ""])
+    game.play(game.Interface(speaker), s, "/fake/stockfish")
+    said = "\n".join(speaker.said)
+    assert "Level 5 from your next game." in said
+    assert "Engine level 5, about 1600." not in said
+    assert s["level"] == 5
+    saved = json.loads((tmp_path / "settings.json").read_text())
+    assert saved["level"] == 5
+    (row,) = read_log(tmp_path)
+    assert row["Opponent"] == "Stockfish level 2"
+    assert int(row["Position requests"]) == 0
+
+
+def test_level_command_rejects_out_of_range(setup):
+    speaker, script, tmp_path = setup
+    s = dict(config.DEFAULTS, colour="white", level=2, position_limit=3)
+    script(["level 9", "level twenty", "resign", "yes", ""])
+    game.play(game.Interface(speaker), s, "/fake/stockfish")
+    said = "\n".join(speaker.said)
+    assert said.count("Please say a level from 1 to 8.") == 2
+    assert s["level"] == 2
+    (row,) = read_log(tmp_path)
+    assert row["Opponent"] == "Stockfish level 2"
+
+
+def test_finish_auto_level_up_saves_and_announces(setup):
+    import json
+    speaker, script, tmp_path = setup
+    s = dict(config.DEFAULTS, colour="white", level=3)
+    for _ in range(4):
+        ratings.append_game(config.RATING_LOG, {
+            "Date": "2026-11-01", "Opponent": "Stockfish level 3",
+            "Opponent rating": 1200, "Result": "1",
+        })
+    script([""])
+    board = chess.Board()
+    game.finish(game.Interface(speaker), s, board, chess.STARTING_FEN,
+                chess.WHITE, "1-0", "Checkmate", 0)
+    said = "\n".join(speaker.said)
+    assert ("You scored over 70 per cent in your last five games at level 3, "
+            "so I've moved the engine up to level 4.") in said
+    assert "Try moving the engine up a level" not in said
+    assert s["level"] == 4
+    saved = json.loads((tmp_path / "settings.json").read_text())
+    assert saved["level"] == 4
+    assert ratings.maybe_level_up(ratings.read_games(config.RATING_LOG), 4) == (None, None)
+
+
+def test_finish_does_not_auto_up_over_an_already_chosen_next_level(setup):
+    speaker, script, tmp_path = setup
+    s = dict(config.DEFAULTS, colour="white", level=5)
+    for _ in range(4):
+        ratings.append_game(config.RATING_LOG, {
+            "Date": "2026-11-01", "Opponent": "Stockfish level 3",
+            "Opponent rating": 1200, "Result": "1",
+        })
+    script([""])
+    game.finish(game.Interface(speaker), s, chess.Board(), chess.STARTING_FEN,
+                chess.WHITE, "1-0", "Checkmate", 0, game_level=3)
+    said = "\n".join(speaker.said)
+    assert "moved the engine up" not in said
+    assert s["level"] == 5
+
+
+def test_finish_does_not_auto_up_at_level_eight(setup):
+    speaker, script, tmp_path = setup
+    s = dict(config.DEFAULTS, colour="white", level=8)
+    for _ in range(4):
+        ratings.append_game(config.RATING_LOG, {
+            "Date": "2026-11-01", "Opponent": "Stockfish level 8",
+            "Opponent rating": 2300, "Result": "1",
+        })
+    script([""])
+    game.finish(game.Interface(speaker), s, chess.Board(), chess.STARTING_FEN,
+                chess.WHITE, "1-0", "Checkmate", 0)
+    said = "\n".join(speaker.said)
+    assert "moved the engine up" not in said
+    assert s["level"] == 8

@@ -128,7 +128,7 @@ def main(argv=None):
                 first_time = False
             config.save(s)
             play(ui, s, engine_path, setup=args.setup)
-            if not between_games(ui):
+            if not between_games(ui, s):
                 speaker.say("Thank you for playing. Goodbye.")
                 return 0
     except (Stop, KeyboardInterrupt):

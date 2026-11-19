@@ -92,8 +92,10 @@ Before your first move you can:
 - Say **settings** to change your colour, the engine's level, your position-request limit, and whether to start from the usual opening position or a custom one.
 - Say **play black**, **play white**, **switch colours** or **random** to change sides. The game starts again from the beginning, and your choice is remembered.
 - Say **square drill** to run the spoken square-colour test (see [Square-colour drill](#square-colour-drill)).
-- Say **progress** to hear how many milestones you have earned, and what to aim for next.
+- Say **milestones** (or **progress**) to hear how many milestones you have earned, and what to aim for next.
+- Say **rating** (or **my rating**, or **what's my rating**) to hear your current blindfold rating and how many games it is based on.
 - Say **reset rating** to start your rating again from scratch. It asks you to confirm first, and keeps your old games in a dated file.
+- Say **level 4** (or any level from 1 to 8, or **set level 4**, or **change level to 4**) to change the engine's level. Spoken numbers such as "level four" work too. Before your first move it applies at once; after you have moved, it is saved for the next game.
 
 To go through the full settings questions at launch, start the program with `--setup` (see [Extra options](#extra-options)).
 
@@ -151,7 +153,7 @@ Speak as you would to a person: name the piece and the square, and say "takes" f
 - If your words could mean two different moves, or no legal move, it says so and asks again. It never guesses. Treat it as a free drill: picture the move on your mental board before you repeat it.
 - When you clearly name a move that isn't legal (a piece and a square, or notation), it quietly notes the move number and what you said, for the after-game report. Those are usually slips of the mental board: a piece that wasn't there, a blocked path, or a king left in check. Mishearings, half-heard moves and moves that could mean two things are never counted against you.
 - Every five moves (at moves 6, 11, 16 and so on) it says "This would be a good moment for a checkpoint", as a reminder to run through the position in your mind. It never reads the position for you. To switch the reminder off, change `"checkpoint_reminders"` to `false` in `settings.json`.
-- After each move, a short **status line** is printed in the terminal, for example: `Move 12 | You: White | Level 3 | Position requests left: 2 | Blindfold rating: 1233 (14 games) | Milestones 9/22`. It never shows the board, the moves, or an evaluation.
+- After each move, a short **status line** is printed in the terminal, for example: `Move 12 | You: White | Level 3 | Position requests left: 2 | Blindfold rating: 1233 (14 games) | Milestones 9/22`. If you have taken a move back in this game, it also shows `Take-backs: N`. It never shows the board, the moves, or an evaluation.
 - During the game it behaves like a sporting opponent and nothing more: no hints, no evaluations, no warnings about loose pieces. Those wait until the game is over, and only if you ask for a review.
 
 ### Things you can ask for
@@ -159,25 +161,28 @@ Speak as you would to a person: name the piece and the square, and say "takes" f
 | Say | What happens |
 |---|---|
 | **repeat** | Repeats the engine's last move. Always allowed. |
+| **last move** / **last moves** / **what was the last move** | Speaks your last move and the engine's reply, for example "Your last move was knight to f3, and I played pawn to e5." Always allowed; it does not use a position request. "Say last move" and "what did you play" work too. **repeat** still only repeats the engine's last move. |
+| **take back** / **undo** / **go back** | Undoes your last move and the engine's reply, so you can say the move again if it was misheard. You can say this as often as you need; the game still counts for your rating. "Takeback" and "take that back" work too. If the game has just ended on a misheard move, you can still say **take back** before the after-game steps. |
 | **position** | Reads out the whole position. Counts against your limit; once it's used up, it politely declines. |
 | **lost thread** | Tells it you have lost track of the position ("lost the thread" and "I've lost the thread" work too). It notes the move number for your after-game report and carries on; it doesn't read the position out. If you say it again, it keeps the first move. |
-| **help** | Reminds you what you can say, and how many position requests you have left. It also mentions the commands below. |
+| **help** / **commands** / **what can I say** | Shows the list of commands on the screen; nothing is spoken. During a game the list includes how many position requests you have left. |
 | **settings** | Before your first move, opens the full settings dialogue (colour, level, position limit, and usual or custom start). After you have moved, it tells you it is too late for this game. |
+| **level 1** to **level 8** / **set level N** / **change level to N** | Sets the engine's level (spoken numbers such as "four" are accepted too). Before your first move, or between games, it applies at once and it says "Engine level 4, about 1400." After you have moved, this game stays at its current level and it says "Level 4 from your next game." A number outside 1 to 8 gets a short reminder of the range. It does not use a position request. |
 | **play white** / **play black** / **switch colours** / **random** | Before your first move, changes sides, starts the game again from the start, and remembers your choice. |
 | **square drill** / **colour drill** / **square colours** | Before your first move, or between games, runs the spoken square-colour drill. After you have moved, it tells you it is too late for this game. |
-| **progress** | Tells you how many milestones you have earned, with a short progress bar for each level, and the next two or three to aim for. You can say this during a game too. |
+| **milestones** / **progress** / **how am I doing** | Tells you how many milestones you have earned, with a short progress bar for each level, and the next two or three to aim for. **Milestones** is the most reliable word to say; "progress" is also accepted, together with "achievements" and a few common mishearings of "progress". You can say this during a game too. |
 | **reset rating** | Before your first move, or between games, starts your rating again from scratch, after asking you to confirm. Your old games are kept in a dated file. Milestones you have already earned are kept. |
 | **draw** | Offers a draw. The engine accepts if it doesn't think it is better (and not in the first 20 moves). |
 | **resign** | Resigns the game (it checks first). |
-| **rating** | Tells you your current blindfold rating. |
+| **rating** / **my rating** / **what's my rating** | Tells you your current blindfold rating and how many games it is based on, for example "Your blindfold rating is 1233 from 14 games." You can say this during a game (it does not use a position request) or between games. It is not the same as **reset rating**, which starts your rating again. |
 
 ## At the end of the game
 
 When the game ends (checkmate, stalemate, a draw, or resignation):
 
-1. It **saves the game as a PGN file** in the `games` folder and **tells you where it was saved**, straight away, so nothing that follows can lose the game. (It doesn't show the game on screen yet, because that would give away the final position.)
+1. It **saves the game as a PGN file** in the `games` folder and says **"Game saved in your games folder."** The full path is printed on the screen, but not read aloud. (It doesn't show the game on screen yet, because that would give away the final position.)
 2. It adds a line to your **rating log** and tells you your **blindfold performance rating** (see below).
-3. It then says: **"Say review for the after-game review, or press Enter to carry on."** If you press Enter, say no, or skip, that is the end of it. If you have just earned any milestones, it tells you, for example: "New milestone: first checkmate. You've earned 9 of 22." It then asks whether you would like another game. You can also say **square drill**, **progress** or **reset rating** at that point. If you said **"lost thread"** during the game, that move has already been noted in the file.
+3. It then says: **"Say review for the after-game review, or press Enter to carry on."** If you press Enter, say no, or skip, that is the end of it. If you have just earned any milestones, it tells you, for example: "New milestone: first checkmate. You've earned 9 of 22." It then asks whether you would like another game. You can also say **square drill**, **milestones**, **rating** or **reset rating** at that point. If you said **"lost thread"** during the game, that move has already been noted in the file.
 
 If you say **review**, it then:
 
@@ -204,10 +209,10 @@ How the Different Engine uses it:
 - After every game it works out your rating and says it aloud, as a whole number. Don't chase decimals; a steady trend over several months means far more than a change of twenty or thirty points.
 - **Rolling window:** once you have played more than 30 games, it uses only your most recent 30, so the figure shows your current strength.
 - **Fewer than 20 games:** it still shows the figure, but reminds you it is only a guide until you have played at least 20 games, and preferably 30.
-- **Too easy or too hard:** if you are scoring more than about 70 per cent or less than about 30 per cent against your current level, it suggests moving the engine up or down a level.
+- **Too easy or too hard:** if you score more than 70 per cent over your last five rated games at the current level, it moves the engine up one level automatically (level 8 is the maximum), saves that in `settings.json`, and tells you, for example: "You scored over 70 per cent in your last five games at level 3, so I've moved the engine up to level 4." The next game starts at the new level, and the count starts again, so it will not jump twice until you have played five games at the new level. Games in which you took a move back still count. It does not move the engine down automatically: if you are scoring less than about 30 per cent against your current level, it suggests that you try moving down a level.
 - **Two cautions**, which it repeats each time: the ratings given to engine levels are rough estimates, not always comparable with human ratings, so the gauge measures your progress against the same machine rather than your exact strength; and at low levels an engine makes odd blunders that a human would not, so treat the reading as a guide, not a verdict.
 
-**The log** is a file called `rating_log.csv` in the Different Engine folder. It opens in Excel, LibreOffice, Numbers or Google Sheets. Each game has one row: date, opponent, opponent rating, colour, time control, result (1, 0.5 or 0), first lost thread, rule breaks, notes, position requests used, how the game ended, the starting position, the name of the PGN file, then the number of illegal attempts and the moves at which they came, the moves at which you asked for the position, the reconstruction score (for example 24/28) and its percentage, the average centipawn loss, how many moves matched the engine's first choice, and the slips with your verdicts (for example "7 Nf6 visualisation"). The last few are left blank if you skipped the reconstruction test or the slip review. A log made by an earlier version is brought up to date automatically the next time you finish a game: every row is kept, and so is any column you added yourself. You can add your own games to it by hand, and they will be counted too.
+**The log** is a file called `rating_log.csv` in the Different Engine folder. It opens in Excel, LibreOffice, Numbers or Google Sheets. Each game has one row: date, opponent, opponent rating, colour, time control, result (1, 0.5 or 0), first lost thread, rule breaks, notes, position requests used, how the game ended, the starting position, the name of the PGN file, then the number of illegal attempts and the moves at which they came, the moves at which you asked for the position, the reconstruction score (for example 24/28) and its percentage, the average centipawn loss, how many moves matched the engine's first choice, and the slips with your verdicts (for example "7 Nf6 visualisation"), and how many times a move was taken back. The last few are left blank if you skipped the reconstruction test or the slip review. A log made by an earlier version is brought up to date automatically the next time you finish a game: every row is kept, and so is any column you added yourself. You can add your own games to it by hand, and they will be counted too.
 
 To see your rating without playing, use the `--rating` option (see below).
 
@@ -219,9 +224,11 @@ To **start your rating again**, say **reset rating** before your first move or b
 
 This is a spoken version of the Colour flash drill in Chapter 3 of the book, and it uses the same target: thirty squares in thirty seconds. Say **square drill** (or **colour drill**, or **square colours**) before your first move or between games, or start the program with `--drill`.
 
-It names thirty random squares, using the spelling alphabet so the file letter is hard to mishear, for example "delta five". The square is also printed on the screen. After each one, say **light** or **dark** (or type it, in text mode). **White** and **black** are accepted too. It tells you at once whether you were right, and if not, what the colour was: "Right." or "No, light."
+It names thirty random squares, using the spelling alphabet so the file letter is hard to mishear, for example "delta five". The square is also printed on the screen. After each one, say **light** or **dark** (or type it, in text mode). **White** and **black** are accepted too. A short click means you were correct; if you were wrong it says so, for example "No, light."
 
-At the end it tells you your score out of 30 and the time in seconds, and whether that was your best so far. Each attempt is added to a file called `drill_log.csv` in the Different Engine folder (date, score, total, seconds), which opens in any spreadsheet. A perfect 30 out of 30, a perfect score in under a minute, and a perfect score in under 30 seconds (the book's Colour flash target) each earn a milestone. Older log rows from when the drill was twenty squares are kept, but they do not count towards those milestones.
+Only your thinking time is counted: the clock starts when it has finished naming the square, and stops when you start to answer. The time it takes to read the square, to play the click or to say a correction, and any delay while it works out what you said, are not included. If it has to ask again because an answer wasn't recognised, the thinking time of each attempt is added, but not the time spent on the re-prompt.
+
+At the end it tells you your score out of 30 and your thinking time in seconds, and whether that was your best so far. Each attempt is added to a file called `drill_log.csv` in the Different Engine folder (date, score, total, seconds), which opens in any spreadsheet. A perfect 30 out of 30, a perfect score in under a minute, and a perfect score in under 30 seconds (the book's Colour flash target) each earn a milestone, now measured by thinking time. Older log rows from when the drill was twenty squares, or from when the clock included the computer's speech, are kept, but they do not count towards the 30-square milestones, and those older times will only look harder.
 
 ---
 
@@ -231,7 +238,7 @@ The program keeps a short list of milestones, worked out automatically from your
 
 After each game, and after each square-colour drill, any newly earned milestone is announced, for example: "New milestone: first checkmate. You've earned 9 of 22."
 
-Say **progress**, or start the program with `--progress`, to hear (and see) a text progress bar for each level, and the next two or three milestones to aim for:
+Say **milestones** (or **progress**, or start the program with `--progress`), to hear (and see) a text progress bar for each level, and the next two or three milestones to aim for:
 
 ```
 Foundations [###] 3/3
@@ -289,7 +296,7 @@ Everything stays inside the Different Engine folder:
 
 ## If something goes wrong
 
-- **It keeps mishearing me.** Speak a little more slowly, keep the microphone close, and use the spelling alphabet for the letters. A headset helps a lot in a noisy room. Run the microphone test to check.
+- **It keeps mishearing me.** Speak a little more slowly, keep the microphone close, and use the spelling alphabet for the letters. A headset helps a lot in a noisy room. Run the microphone test to check. You can also say **take back** to undo your last move and the engine's reply, then say the move again. For your milestones, say **milestones** rather than "progress" if the recogniser misses "progress".
 - **"I couldn't find a microphone."** Plug the microphone in before starting, check it is not muted, and on a Mac allow Terminal to use the microphone (System Settings > Privacy & Security > Microphone). If you have several microphones, use `--test-mic` to see their numbers and `--mic` to choose one.
 - **I can't hear it speak.** Check the volume and that the right speaker is chosen. On a Raspberry Pi or Linux, the voice comes from a program called espeak-ng, which the starter installs; you can also type `sudo apt install espeak-ng`.
 - **The custom-position board doesn't open.** It then asks you to paste a FEN instead. On Linux, `sudo apt install python3-tk` adds the board window.

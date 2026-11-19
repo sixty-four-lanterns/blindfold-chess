@@ -2,17 +2,23 @@
 
 Thirty random squares are named with the spelling alphabet (for example
 "delta five"), matching the Colour flash target in the book. The player
-answers "light" or "dark" ("white" and "black" are accepted too). Each
-answer is marked at once, and at the end the score and time are spoken
-and written to drill_log.csv.
+answers "light" or "dark" ("white" and "black" are accepted too). A
+click marks a correct answer; a wrong one is spoken. Only the player's
+thinking time is counted, and at the end the score and that time are
+spoken and written to drill_log.csv.
 """
 
 import csv
 import datetime
+import math
 import os
 import random
 import re
+import struct
+import subprocess
+import sys
 import time
+import wave
 
 from . import settings as config
 
@@ -57,15 +63,21 @@ def square_colour(square):
     return "dark" if file_n % 2 == rank_n % 2 else "light"
 
 
+LIGHT_WORDS = {"light", "white", "lite", "lights"}
+DARK_WORDS = {"dark", "black", "darke"}
+
+
 def parse_colour_answer(text):
     """'light' or 'dark', or None if the answer wasn't clear.
 
-    'white' is treated as light, 'black' as dark.
+    'white' is treated as light, 'black' as dark.  'light square',
+    'dark square', and a few common mishearings ('lite', 'lights',
+    'darke', 'dark one') are accepted too.
     """
     t = re.sub(r"[^a-z\s]", " ", (text or "").lower())
     words = set(t.split())
-    light = bool(words & {"light", "white"})
-    dark = bool(words & {"dark", "black"})
+    light = bool(words & LIGHT_WORDS)
+    dark = bool(words & DARK_WORDS)
     if light and not dark:
         return "light"
     if dark and not light:
@@ -92,7 +104,7 @@ def read_results(path=None):
             try:
                 score = int(row.get("Score", ""))
                 total = int(row.get("Total", ""))
-                seconds = int(row.get("Seconds", ""))
+                seconds = parse_seconds(row.get("Seconds", ""))
             except ValueError:
                 continue
             rows.append({
@@ -127,43 +139,189 @@ def is_new_best(score, seconds, previous):
     return (score, -seconds) > (previous["score"], -previous["seconds"])
 
 
+def parse_seconds(value):
+    """Accept a whole number or one decimal place from the log."""
+    seconds = float(value)
+    if seconds == int(seconds):
+        return int(seconds)
+    return seconds
+
+
+def store_seconds(seconds):
+    """Round thinking time to one decimal place, as an int when it is whole."""
+    seconds = max(0.0, round(float(seconds), 1))
+    if seconds == int(seconds):
+        return int(seconds)
+    return seconds
+
+
+def seconds_phrase(seconds):
+    """12 -> '12 seconds'; 1 -> '1 second'; 12.5 -> '12.5 seconds'."""
+    noun = "second" if seconds == 1 else "seconds"
+    return f"{seconds} {noun}"
+
+
 def summarise(score, total, seconds, previous=None, new_best=False):
     """Plain-English lines for the end of a drill."""
-    noun = "second" if seconds == 1 else "seconds"
-    lines = [f"You scored {score} out of {total} in {seconds} {noun}."]
+    lines = [f"You scored {score} out of {total}.",
+             f"Your thinking time was {seconds_phrase(seconds)}."]
     if new_best:
         lines.append("That's your best so far.")
     elif previous:
-        best_noun = "second" if previous["seconds"] == 1 else "seconds"
         lines.append(
             f"Your best is {previous['score']} out of {previous['total']} "
-            f"in {previous['seconds']} {best_noun}."
+            f"in {seconds_phrase(previous['seconds'])}."
         )
     return lines
 
 
-def run_drill(ui, path=None, rng=None, now=None, clock=time.monotonic, n=N_SQUARES):
+# ---------------------------------------------------------------------------
+# A short click for a correct answer
+# ---------------------------------------------------------------------------
+
+CLICK_SECONDS = 0.04
+CLICK_RATE = 22050
+CLICK_FREQ = 1200
+
+
+def click_wav_bytes(freq=CLICK_FREQ, duration=CLICK_SECONDS, rate=CLICK_RATE, amplitude=0.45):
+    """A very short decaying tone, as WAV file bytes."""
+    n = int(rate * duration)
+    frames = bytearray()
+    for i in range(n):
+        t = i / rate
+        env = math.exp(-t * 80)
+        sample = int(amplitude * env * 32767 * math.sin(2 * math.pi * freq * t))
+        frames += struct.pack("<h", max(-32768, min(32767, sample)))
+    # A minimal 16-bit mono WAV header (44 bytes) plus the samples
+    data_size = len(frames)
+    header = struct.pack(
+        "<4sI4s4sIHHIIHH4sI",
+        b"RIFF", 36 + data_size, b"WAVE", b"fmt ", 16,
+        1, 1, rate, rate * 2, 2, 16, b"data", data_size,
+    )
+    return header + frames
+
+
+def write_click_wav(path):
+    raw = click_wav_bytes()
+    # Write via the wave module so the header is always well-formed
+    n = (len(raw) - 44) // 2
+    with wave.open(path, "w") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(CLICK_RATE)
+        w.writeframes(raw[44:])
+    return path
+
+
+def click_wav_path():
+    """The packaged click, created on first use if the file is missing."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "click.wav")
+    if os.path.exists(path):
+        return path
+    try:
+        write_click_wav(path)
+        return path
+    except OSError:
+        fallback = os.path.join(config.APP_DIR, "click.wav")
+        os.makedirs(config.APP_DIR, exist_ok=True)
+        write_click_wav(fallback)
+        return fallback
+
+
+def play_click(path=None):
+    """Play the short click.  Returns True if a sound (or a terminal bell) was produced.
+
+    Windows uses winsound, macOS afplay, and Linux paplay, aplay or pw-play.
+    If none of those is available, simpleaudio is tried if it is installed,
+    then a terminal bell.  Returns False only if nothing could be played,
+    in which case the drill should say 'Correct.' instead.
+    """
+    path = path or click_wav_path()
+    try:
+        if sys.platform.startswith("win"):
+            import winsound
+            winsound.PlaySound(path, winsound.SND_FILENAME | winsound.SND_ASYNC)
+            return True
+        if sys.platform == "darwin" and _which("afplay"):
+            subprocess.Popen(["afplay", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return True
+        for cmd in ("paplay", "aplay", "pw-play"):
+            if _which(cmd):
+                subprocess.Popen([cmd, path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return True
+        try:
+            import simpleaudio
+            simpleaudio.WaveObject.from_wave_file(path).play()
+            return True
+        except Exception:
+            pass
+        print("", end="", flush=True)
+        return True
+    except Exception:
+        return False
+
+
+def _which(cmd):
+    from shutil import which
+    return which(cmd)
+
+
+def _hear_thinking(ui, prompt, clock):
+    """Hear one answer and the thinking time for that attempt."""
+    start = clock()
+    text = ui.hear(prompt)
+    elapsed = getattr(ui, "last_thinking_seconds", None)
+    if elapsed is None:
+        elapsed = clock() - start
+    return text, max(0.0, float(elapsed))
+
+
+def run_drill(ui, path=None, rng=None, now=None, clock=time.monotonic, n=N_SQUARES,
+              play=None):
     """Run one drill, save the result, and tell the player the score and time.
 
-    Returns a dict with score, total, seconds and date.
+    Only the player's thinking time is counted: the clock starts when the
+    square has finished being spoken, and stops when the player starts
+    answering.  Machine speech, recognition delays and the click are excluded.
+
+    `play` is play_click by default; pass a stub in tests.  Returns a dict
+    with score, total, seconds and date.
     """
     path = path or config.DRILL_LOG
     squares = pick_squares(rng, n)
     previous = best_result(read_results(path))
+    click = play if play is not None else play_click
     ui.say("Square-colour drill. I'll name thirty squares. Say light or dark after each one. "
-           "White and black are fine too.")
-    start = clock()
+           "White and black are fine too. A click means correct. Only your thinking time is counted.")
+    thinking = 0.0
     score = 0
     for i, square in enumerate(squares, 1):
         print(f"  {i}/{n}: {square}")
-        answer = ui.ask(f"{speak_square(square)}.", parse_colour_answer, "Light or dark?")
+        ui.say(f"{speak_square(square)}.")
+        prompt = "Light or dark?"
+        failures = 0
+        while True:
+            text, elapsed = _hear_thinking(ui, prompt, clock)
+            thinking += elapsed
+            answer = parse_colour_answer((text or "").lower())
+            if answer is not None:
+                break
+            failures += 1
+            if getattr(ui, "listener", None) and failures >= 2:
+                prompt = "Please type your answer and press Enter:"
+                ui.say("Sorry, I didn't catch that. You can type the answer instead.")
+            else:
+                ui.say("Sorry, I didn't catch that. Light or dark.")
         correct = square_colour(square)
         if answer == correct:
             score += 1
-            ui.say("Right.")
+            if not click():
+                ui.say("Correct.")
         else:
             ui.say(f"No, {correct}.")
-    seconds = int(round(clock() - start))
+    seconds = store_seconds(thinking)
     date = (now or datetime.date.today()).isoformat()
     append_result(path, {"Date": date, "Score": score, "Total": n, "Seconds": seconds})
     new_best = is_new_best(score, seconds, previous)
