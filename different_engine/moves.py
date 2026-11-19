@@ -57,7 +57,13 @@ COMMANDS = {
     "rating": "rating", "log": "rating", "quit": "quit",
     # "lost thread", "lost the thread", "I've lost the thread"
     "lost": "lost thread", "thread": "lost thread",
+    "progress": "progress",
 }
+
+RESET_RATING_PHRASE = re.compile(r"\breset\s+(?:my\s+|the\s+)?rating\b")
+DRILL_PHRASE = re.compile(
+    r"\b(square\s+drill|colour\s+drill|color\s+drill|square\s+colours|square\s+colors)\b"
+)
 
 FILES = "abcdefgh"
 RANKS = "12345678"
@@ -159,10 +165,34 @@ def _try_notation(board, text):
     return None
 
 
+def special_command(text):
+    """Session commands that may be a phrase, not a single word.
+
+    'reset rating' has to be recognised before 'rating', and 'square drill'
+    before the word 'square' is dropped as filler.
+    """
+    t = re.sub(r"[^a-z\s]", " ", (text or "").lower())
+    t = re.sub(r"\s+", " ", t).strip()
+    if not t:
+        return None
+    if RESET_RATING_PHRASE.search(t):
+        return "reset rating"
+    if DRILL_PHRASE.search(t):
+        return "square drill"
+    if re.search(r"\bprogress\b", t):
+        return "progress"
+    return None
+
+
 def parse(board, text):
     """Work out what the player said: a legal move, a command, or a problem."""
     if not text or not text.strip():
         return ParseResult("problem", message="I didn't hear anything. Please say your move again.")
+
+    special = special_command(text)
+    if special:
+        return ParseResult("command", command=special)
+
 
     tokens = normalise(text)
     squares = [t for t in tokens if _is_square(t)]
@@ -406,5 +436,8 @@ def vocabulary():
         "random", "level", "unlimited", "usual", "custom", "never", "stop", "change",
         "keep", "en", "passant", "offer", "please", "again", "say", "the",
         "chess", "visualisation", "visualization", "not", "sure", "skip",
+        "play", "settings", "review", "switch", "colour", "color", "colours",
+        "colors", "sides", "as", "light", "dark", "progress", "drill", "square",
+        "reset", "my",
     } | set(NUMBER_WORDS) - {"won", "too", "for", "ate", "nought"}
     return sorted(words)

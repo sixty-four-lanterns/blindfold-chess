@@ -40,6 +40,8 @@ def setup(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "APP_DIR", str(tmp_path))
     monkeypatch.setattr(config, "GAMES_DIR", str(tmp_path / "games"))
     monkeypatch.setattr(config, "RATING_LOG", str(tmp_path / "rating_log.csv"))
+    monkeypatch.setattr(config, "DRILL_LOG", str(tmp_path / "drill_log.csv"))
+    monkeypatch.setattr(config, "MILESTONES_FILE", str(tmp_path / "milestones.json"))
     monkeypatch.setattr(config, "SETTINGS_FILE", str(tmp_path / "settings.json"))
     monkeypatch.setattr(game, "Engine", FakeEngine)
     speaker = Speaker()
@@ -84,12 +86,12 @@ def test_whole_game_and_report(setup, monkeypatch):
     monkeypatch.setattr(review, "analyse_game", lambda *a, **k: looked)
 
     script([
-        "usual",
         "knight e5", "", "e4",                       # move 1: one illegal attempt, one mishearing
         "position", "Nf3",                           # move 2: a position request
         "lost thread", "I've lost the thread", "Bb5",  # move 3: marked once, kept
         "Ba4", "castles kingside",
         "resign", "yes",                             # move 6 (after the checkpoint reminder)
+        "review",                                    # ask for the after-game review
         "yes",                                       # lost the thread at move 3? yes
         "no",                                        # honesty rules
         "a short note",
@@ -110,6 +112,10 @@ def test_whole_game_and_report(setup, monkeypatch):
     assert "You tried one illegal move, at move 1." in said
     assert "You asked for the position once, at move 2." in said
     assert "Your blindfold performance rating is" in said
+    assert "Say review for the after-game review" in said
+    # saved and the rating are spoken before the reconstruction test
+    assert said.index("I've saved the game") < said.index("Say review for the after-game review")
+    assert said.index("Your blindfold performance rating is") < said.index("You placed 31 of 32")
     # the final position isn't shown before the reconstruction test
     assert said.index("I've saved the game") < said.index("You placed 31 of 32")
 
@@ -141,7 +147,8 @@ def test_no_window_and_first_illegal_attempt_suggested(setup, monkeypatch):
         board.push_san(san)
     log = {"illegal": [{"move": 2, "said": "bishop b5", "reason": "No bishop of yours can go to b5."}],
            "requests": [], "lost_mark": None}
-    script(["yes",            # was the illegal attempt at move 2 when you lost the thread?
+    script(["review",         # ask for the after-game review
+            "yes",            # was the illegal attempt at move 2 when you lost the thread?
             "no", "", "yes",  # honesty, note, reconstruction (no window)
             "no"])            # read aloud (no engine path, so no slip review question)
     game.finish(game.Interface(speaker), s, board, chess.STARTING_FEN, chess.WHITE, "1/2-1/2",
@@ -180,3 +187,462 @@ def test_checkpoint_due():
 
 def test_not_sure_is_not_yes():
     assert game.is_yes("yes please".split()) and not game.is_yes("not sure".split())
+
+
+def test_default_play_skips_start_and_skips_review_if_declined(setup):
+    speaker, script, tmp_path = setup
+    s = dict(config.DEFAULTS, colour="white", level=5, position_limit=2, checkpoint_reminders=True)
+    script([
+        "e4",
+        "Nf3",
+        "lost thread", "I've lost the thread", "Bb5",
+        "Ba4", "castles kingside",
+        "resign", "yes",
+        "",                                          # decline the after-game review
+    ])
+    game.play(game.Interface(speaker), s, "/fake/stockfish")
+    said = "\n".join(speaker.said)
+
+    assert "You're White, level 5, two position requests." in said
+    assert "Shall we start from the usual opening position" not in said
+    assert game.CHECKPOINT in said                   # reminders follow settings.json, default on
+    assert "I'll note that you lost the thread at move 3" in said
+    assert "already noted that you first lost the thread at move 3" in said
+    assert "Say review for the after-game review" in said
+    assert "During the game you told me you had lost the thread" not in said
+    assert "honesty rules" not in said
+    assert "reconstruct" not in said.lower()
+    assert "biggest slips" not in said
+    assert "read the moves" not in said
+    assert "I've saved the game" in said
+    assert "Your blindfold performance rating is" in said
+    assert said.index("I've saved the game") < said.index("Say review for the after-game review")
+    assert said.index("Your blindfold performance rating is") < said.index("Say review for the after-game review")
+
+    headers = read_pgn(tmp_path).headers
+    assert headers["LostThreadMarked"] == "3"
+    assert headers["FirstLostThread"] == "never"
+    assert "Reconstruction" not in headers
+    (row,) = read_log(tmp_path)
+    assert row["Result"] == "0"
+    assert row["First lost thread"] == ""
+    assert row["Rule breaks"] == ""
+    assert row["Notes"] == ""
+    assert row["Reconstruction"] == ""
+    assert row["Average centipawn loss"] == ""
+    assert row["Slips"] == ""
+
+
+def test_finish_skips_review_but_saves_and_rates(setup):
+    speaker, script, tmp_path = setup
+    s = dict(config.DEFAULTS, level=3)
+    board = chess.Board()
+    for san in ["e4", "e5", "Nf3", "Nc6", "Bc4", "Nf6"]:
+        board.push_san(san)
+    log = {"illegal": [{"move": 2, "said": "bishop b5", "reason": "No bishop of yours can go to b5."}],
+           "requests": [3], "lost_mark": 2}
+    script([""])                                     # decline the review
+    game.finish(game.Interface(speaker), s, board, chess.STARTING_FEN, chess.WHITE, "1/2-1/2",
+                "Draw agreed", 1, log, engine_path=None)
+    said = "\n".join(speaker.said)
+    assert "I've saved the game" in said
+    assert "Your blindfold performance rating is" in said
+    assert "Say review for the after-game review" in said
+    assert "lose the thread" not in said
+    assert "illegal move attempt" not in said
+    assert "honesty" not in said
+    assert "reconstruct" not in said.lower()
+    assert "You asked for the position" not in said
+    headers = read_pgn(tmp_path).headers
+    assert headers["LostThreadMarked"] == "2"
+    assert headers["FirstLostThread"] == "never"
+    assert headers["PositionRequests"] == "1"
+    (row,) = read_log(tmp_path)
+    assert row["Result"] == "0.5"
+    assert row["First lost thread"] == ""
+    assert row["Notes"] == ""
+    assert row["Reconstruction"] == ""
+    assert row["Position requests"] == "1"
+
+
+def test_default_play_uses_saved_custom_start(setup):
+    speaker, script, tmp_path = setup
+    fen = "8/8/8/4k3/8/4K3/8/8 w - - 0 1"
+    s = dict(config.DEFAULTS, colour="white", level=1, start="custom", custom_fen=fen)
+    script([""])                                     # decline the review
+    game.play(game.Interface(speaker), s, "/fake/stockfish")
+    said = "\n".join(speaker.said)
+    assert "Shall we start from the usual opening position" not in said
+    assert "Here is the starting position" in said
+    assert "I've saved the game" in said
+    headers = read_pgn(tmp_path).headers
+    assert headers.get("SetUp") == "1"
+    assert "4k3" in headers["FEN"]
+
+
+def _patch_main(monkeypatch, speaker, listener=None):
+    from different_engine import __main__ as entry
+    calls = {"choose": 0, "mic": 0, "play": []}
+
+    def fake_choose(ui, s, first_time, offer_same=True):
+        calls["choose"] += 1
+        return s
+
+    def fake_mic(*a, **k):
+        calls["mic"] += 1
+
+    def fake_play(ui, s, engine_path, setup=False, quick=None):
+        calls["play"].append({"settings": dict(s), "setup": setup})
+
+    monkeypatch.setattr(entry, "choose_settings", fake_choose)
+    monkeypatch.setattr(entry, "test_microphone", fake_mic)
+    monkeypatch.setattr(entry, "play", fake_play)
+    monkeypatch.setattr(entry, "ensure_stockfish", lambda path: "/fake/stockfish")
+    monkeypatch.setattr(entry, "Speaker", lambda enabled=True, rate=160: speaker)
+    if listener is not None:
+        monkeypatch.setattr(entry, "ensure_vosk_model", lambda: "model")
+        monkeypatch.setattr(entry, "VoiceInput", lambda *a, **k: listener)
+    return entry, calls
+
+
+def test_main_default_skips_settings(setup, monkeypatch):
+    speaker, script, tmp_path = setup
+    entry, calls = _patch_main(monkeypatch, speaker)
+    script(["no"])
+    assert entry.main(["--text"]) == 0
+    assert calls["choose"] == 0
+    assert calls["mic"] == 0
+    assert calls["play"] == [{"settings": dict(config.DEFAULTS), "setup": False}]
+    assert any("Welcome to the Different Engine" in t for t in speaker.said)
+    assert (tmp_path / "settings.json").exists()
+
+
+def test_main_quick_is_alias_for_default(setup, monkeypatch):
+    import json
+    speaker, script, tmp_path = setup
+    saved = dict(config.DEFAULTS, colour="black", level=7, position_limit=0)
+    (tmp_path / "settings.json").write_text(json.dumps(saved))
+    entry, calls = _patch_main(monkeypatch, speaker)
+    script(["no"])
+    assert entry.main(["--text", "--quick", "--hands-free", "--mic", "2"]) == 0
+    assert calls["choose"] == 0
+    assert calls["play"][0]["setup"] is False
+    assert calls["play"][0]["settings"]["colour"] == "black"
+    assert calls["play"][0]["settings"]["level"] == 7
+    assert calls["play"][0]["settings"]["position_limit"] == 0
+
+
+def test_main_setup_asks_settings(setup, monkeypatch):
+    import json
+    speaker, script, tmp_path = setup
+    (tmp_path / "settings.json").write_text(json.dumps(config.DEFAULTS))
+    entry, calls = _patch_main(monkeypatch, speaker)
+    script(["no"])
+    assert entry.main(["--text", "--setup"]) == 0
+    assert calls["choose"] == 1
+    assert calls["play"][0]["setup"] is True
+
+
+def test_main_setup_wins_over_quick(setup, monkeypatch):
+    import json
+    speaker, script, tmp_path = setup
+    (tmp_path / "settings.json").write_text(json.dumps(config.DEFAULTS))
+    entry, calls = _patch_main(monkeypatch, speaker)
+    script(["no"])
+    assert entry.main(["--text", "--setup", "--quick"]) == 0
+    assert calls["choose"] == 1
+    assert calls["play"][0]["setup"] is True
+
+
+class DummyListener:
+    """Use the scripted input() answers, as a real microphone would be asked to listen."""
+    def listen(self, prompt=""):
+        return input(prompt)
+
+
+def test_main_first_run_offers_mic_test(setup, monkeypatch):
+    speaker, script, tmp_path = setup
+    entry, calls = _patch_main(monkeypatch, speaker, listener=DummyListener())
+    script(["yes", "no"])                            # yes to the mic test, no to another game
+    assert entry.main([]) == 0
+    assert calls["mic"] == 1
+    assert calls["choose"] == 0
+    assert calls["play"][0]["setup"] is False
+
+
+# ---------------------------------------------------------------------------
+# Quick start, colour switch, status line and optional review
+# ---------------------------------------------------------------------------
+
+class FlexibleEngine:
+    """Plays any legal move, so the tests can switch the player to Black."""
+
+    def __init__(self, path, level):
+        pass
+
+    def choose_move(self, board):
+        return next(iter(board.legal_moves))
+
+    def accepts_draw(self, board, colour):
+        return False
+
+    def close(self):
+        pass
+
+
+def test_pregame_command_phrases():
+    assert game.pregame_command("settings") == "settings"
+    assert game.pregame_command("open settings please") == "settings"
+    assert game.pregame_command("play black") == "black"
+    assert game.pregame_command("I'd like to play as black") == "black"
+    assert game.pregame_command("play white") == "white"
+    assert game.pregame_command("switch colours") == "switch"
+    assert game.pregame_command("switch colors") == "switch"
+    assert game.pregame_command("switch sides") == "switch"
+    assert game.pregame_command("random") == "random"
+    assert game.pregame_command("play random") == "random"
+    assert game.pregame_command("e4") is None
+    assert game.pregame_command("knight f3") is None
+    assert game.pregame_command("") is None
+
+
+def test_play_black_before_first_move_saves_and_restarts(setup, monkeypatch):
+    monkeypatch.setattr(game, "Engine", FlexibleEngine)
+    speaker, script, tmp_path = setup
+    s = dict(config.DEFAULTS, colour="white", level=2)
+    script([
+        "play black",
+        "resign", "yes",
+        "",
+    ])
+    game.play(game.Interface(speaker), s, "/fake/stockfish")
+    said = "\n".join(speaker.said)
+    assert "You'll play black." in said
+    assert "Starting again from the start." in said
+    assert "You're Black, level 2, three position requests." in said
+    assert s["colour"] == "black"
+    import json
+    saved = json.loads((tmp_path / "settings.json").read_text())
+    assert saved["colour"] == "black"
+    (row,) = read_log(tmp_path)
+    assert row["Colour"] == "Black"
+    assert row["Result"] == "0"
+
+
+def test_switch_colours_and_settings_help_mentioned(setup, monkeypatch):
+    monkeypatch.setattr(game, "Engine", FlexibleEngine)
+    speaker, script, tmp_path = setup
+    s = dict(config.DEFAULTS, colour="white", level=3)
+    script(["help", "switch colours", "resign", "yes", ""])
+    game.play(game.Interface(speaker), s, "/fake/stockfish")
+    said = "\n".join(speaker.said)
+    assert "play white, play black, switch colours, or random" in said
+    assert "square drill" in said and "progress" in said and "reset rating" in said
+    assert "You'll play black." in said
+    assert "You're Black, level 3," in said
+    assert s["colour"] == "black"
+
+
+def test_colour_change_refused_after_first_move(setup):
+    speaker, script, tmp_path = setup
+    s = dict(config.DEFAULTS, colour="white", level=2)
+    script(["e4", "play black", "resign", "yes", ""])
+    game.play(game.Interface(speaker), s, "/fake/stockfish")
+    said = "\n".join(speaker.said)
+    assert "You can only change that before your first move" in said
+    assert "You'll play black." not in said
+    assert s["colour"] == "white"
+    (row,) = read_log(tmp_path)
+    assert row["Colour"] == "White"
+
+
+def test_settings_before_first_move(setup, monkeypatch):
+    monkeypatch.setattr(game, "Engine", FlexibleEngine)
+    speaker, script, tmp_path = setup
+    s = dict(config.DEFAULTS, colour="white", level=2, position_limit=3)
+    script([
+        "settings",
+        "black",
+        "4",
+        "1",
+        "usual",
+        "resign", "yes",
+        "",
+    ])
+    game.play(game.Interface(speaker), s, "/fake/stockfish")
+    said = "\n".join(speaker.said)
+    assert "Starting again with your new settings." in said
+    assert "You're Black, level 4, one position request." in said
+    assert s["colour"] == "black" and s["level"] == 4 and s["position_limit"] == 1
+    import json
+    saved = json.loads((tmp_path / "settings.json").read_text())
+    assert saved["level"] == 4 and saved["colour"] == "black"
+
+
+def test_setup_flag_asks_for_start_position(setup):
+    speaker, script, tmp_path = setup
+    s = dict(config.DEFAULTS, colour="white", level=2)
+    script(["usual", "resign", "yes", ""])
+    game.play(game.Interface(speaker), s, "/fake/stockfish", setup=True)
+    said = "\n".join(speaker.said)
+    assert "Shall we start from the usual opening position" in said
+    assert "I've saved the game" in said
+
+
+def test_review_updates_pgn_and_log_without_duplicating_row(setup, monkeypatch):
+    speaker, script, tmp_path = setup
+    s = dict(config.DEFAULTS, level=3)
+    board = chess.Board()
+    for san in ["e4", "e5", "Nf3", "Nc6", "Bc4", "Nf6"]:
+        board.push_san(san)
+    log = {"illegal": [{"move": 2, "said": "bishop b5", "reason": "No bishop of yours can go to b5."}],
+           "requests": [3], "lost_mark": 2}
+    script(["review", "yes", "no", "a note", "no", "no"])  # review, lost thread, honesty, note, no reconstruction, no read-aloud
+    game.finish(game.Interface(speaker), s, board, chess.STARTING_FEN, chess.WHITE, "1/2-1/2",
+                "Draw agreed", 1, log, engine_path=None)
+    rows = read_log(tmp_path)
+    assert len(rows) == 1
+    assert rows[0]["First lost thread"] == "2"
+    assert rows[0]["Notes"] == "a note"
+    assert rows[0]["Result"] == "0.5"
+    assert read_pgn(tmp_path).headers["FirstLostThread"] == "2"
+
+
+def test_checkpoint_off_when_settings_say_so(setup):
+    speaker, script, tmp_path = setup
+    s = dict(config.DEFAULTS, colour="white", level=2, checkpoint_reminders=False)
+    script([
+        "e4", "Nf3", "Bb5", "Ba4", "castles kingside",
+        "resign", "yes", "",
+    ])
+    game.play(game.Interface(speaker), s, "/fake/stockfish")
+    assert game.CHECKPOINT not in "\n".join(speaker.said)
+
+
+def test_status_line_after_moves_has_no_board_or_eval(setup, capsys):
+    speaker, script, tmp_path = setup
+    s = dict(config.DEFAULTS, colour="white", level=3, position_limit=3)
+    script(["e4", "position", "Nf3", "resign", "yes", ""])
+    game.play(game.Interface(speaker), s, "/fake/stockfish")
+    out = capsys.readouterr().out
+    assert ("Move 1 | You: White | Level 3 | Position requests left: 3 | "
+            "Blindfold rating: no rating yet | Milestones 0/22") in out
+    assert ("Move 2 | You: White | Level 3 | Position requests left: 2 | "
+            "Blindfold rating: no rating yet | Milestones 0/22") in out
+    assert "rnbqkbnr" not in out.lower()
+    assert "fen" not in out.lower()
+    assert "eval" not in out.lower()
+    assert "centipawn" not in out.lower()
+    assert "evaluation" not in out.lower()
+
+
+def test_format_status_with_and_without_rating(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "RATING_LOG", str(tmp_path / "rating_log.csv"))
+    board = chess.Board()
+    monkeypatch.setattr(config, "MILESTONES_FILE", str(tmp_path / "milestones.json"))
+    line = game.format_status(board, chess.WHITE, 2, 3, 0, games=[])
+    assert line == ("Move 1 | You: White | Level 2 | Position requests left: 3 | "
+                    "Blindfold rating: no rating yet | Milestones 0/22")
+    games = [{"opponent": "x", "rating": 1200, "result": 1.0}]
+    board.push_san("e4")
+    line = game.format_status(board, chess.BLACK, 4, -1, 0, games=games)
+    assert line == ("Move 1 | You: Black | Level 4 | Position requests left: unlimited | "
+                    "Blindfold rating: 1600 (1 game) | Milestones 0/22")
+    line = game.format_status(board, chess.WHITE, 2, 3, 0, games=[], milestones_count=(9, 22))
+    assert line.endswith("| Milestones 9/22")
+    assert "eval" not in line.lower() and "board" not in line.lower()
+
+
+def test_session_command_phrases():
+    assert game.session_command("square drill") == "drill"
+    assert game.session_command("colour drill") == "drill"
+    assert game.session_command("color drill") == "drill"
+    assert game.session_command("square colours") == "drill"
+    assert game.session_command("square colors") == "drill"
+    assert game.session_command("progress") == "progress"
+    assert game.session_command("my progress") == "progress"
+    assert game.session_command("reset rating") == "reset-rating"
+    assert game.session_command("reset my rating") == "reset-rating"
+    assert game.session_command("reset the rating") == "reset-rating"
+    assert game.session_command("play black") == "black"
+    assert game.session_command("settings") == "settings"
+    assert game.session_command("e4") is None
+
+
+def test_finish_announces_checkmate_milestones(setup):
+    speaker, script, tmp_path = setup
+    s = dict(config.DEFAULTS, colour="black", level=2)
+    board = chess.Board()
+    for move in ["f3", "e5", "g4", "Qh4"]:
+        board.push_san(move)
+    script([""])   # decline the review
+    game.finish(game.Interface(speaker), s, board, chess.STARTING_FEN,
+                chess.BLACK, "0-1", "Checkmate", 0, {})
+    said = "\n".join(speaker.said)
+    assert "New milestone: first checkmate." in said
+    assert "New milestone: first win." in said
+    assert "New milestone: a completed game." in said
+    assert "You've earned" in said and "of 22" in said
+
+
+def test_drill_and_reset_refused_after_first_move(setup):
+    speaker, script, tmp_path = setup
+    s = dict(config.DEFAULTS, colour="white", level=2)
+    script(["e4", "square drill", "reset rating", "resign", "yes", ""])
+    game.play(game.Interface(speaker), s, "/fake/stockfish")
+    said = "\n".join(speaker.said)
+    assert said.count("You can only do that before your first move, or between games") == 2
+    assert "Square-colour drill" not in said
+    assert "Your rating has been reset" not in said
+
+
+def test_progress_during_game(setup):
+    speaker, script, tmp_path = setup
+    s = dict(config.DEFAULTS, colour="white", level=2)
+    script(["progress", "resign", "yes", ""])
+    game.play(game.Interface(speaker), s, "/fake/stockfish")
+    said = "\n".join(speaker.said)
+    assert "Foundations [" in said
+    assert "Next up:" in said
+
+
+def test_main_progress_stops_without_playing(setup, monkeypatch):
+    speaker, script, tmp_path = setup
+    entry, calls = _patch_main(monkeypatch, speaker)
+    assert entry.main(["--text", "--progress"]) == 0
+    assert calls["play"] == []
+    assert any("Foundations [" in t for t in speaker.said)
+
+
+def test_main_reset_rating_flag(setup, monkeypatch):
+    speaker, script, tmp_path = setup
+    ratings.append_game(config.RATING_LOG, {
+        "Date": "2026-11-01", "Opponent": "Stockfish level 2", "Opponent rating": 1000, "Result": "1",
+    })
+    entry, calls = _patch_main(monkeypatch, speaker)
+    script(["yes", "no"])   # confirm reset, then no to another game
+    assert entry.main(["--text", "--reset-rating"]) == 0
+    assert calls["play"]  # a game still starts after the reset
+    assert not (tmp_path / "rating_log.csv").exists()
+    assert (tmp_path / "rating_log_archived_2026-11-19.csv").exists() or list(tmp_path.glob("rating_log_archived_*.csv"))
+    assert any("Your rating has been reset" in t for t in speaker.said)
+
+
+def test_reset_rating_asks_and_can_be_declined(setup):
+    import datetime
+    speaker, script, tmp_path = setup
+    ratings.append_game(config.RATING_LOG, {
+        "Date": "2026-11-01", "Opponent": "Stockfish level 2", "Opponent rating": 1000, "Result": "1",
+    })
+    script(["no"])
+    result = game.reset_rating(game.Interface(speaker), today=datetime.date(2026, 11, 19))
+    assert result is False
+    assert (tmp_path / "rating_log.csv").exists()
+    assert list(tmp_path.glob("rating_log_archived_*.csv")) == []
+    assert "Your rating is unchanged." in "\n".join(speaker.said)
+
+    script(["yes"])
+    result = game.reset_rating(game.Interface(speaker), today=datetime.date(2026, 11, 19))
+    assert str(result).endswith("rating_log_archived_2026-11-19.csv")
+    assert not (tmp_path / "rating_log.csv").exists()
+    assert "Your rating has been reset. Your old games are kept in rating_log_archived_2026-11-19.csv." in "\n".join(speaker.said)

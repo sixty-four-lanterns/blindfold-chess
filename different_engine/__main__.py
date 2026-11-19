@@ -3,12 +3,17 @@
     Start-Windows.bat   start-linux.sh   start-mac.command
 
 Options (add them after the launcher name, or after "python -m different_engine"):
-    --text        type moves instead of speaking them (no microphone needed)
-    --test-mic    check the microphone: say "knight f3" and hear it repeated
-    --rating      show your performance rating from the log, then stop
-    --quiet       don't speak, just print
-    --hands-free  listen all the time instead of waiting for Enter
-    --mic N       use microphone number N (see --test-mic for the list)
+    --text          type moves instead of speaking them (no microphone needed)
+    --test-mic      check the microphone: say "knight f3" and hear it repeated
+    --rating        show your performance rating from the log, then stop
+    --quiet         don't speak, just print
+    --hands-free    listen all the time instead of waiting for Enter
+    --mic N         use microphone number N (see --test-mic for the list)
+    --setup         ask for colour, level, position limit and starting position before the game
+    --quick         accepted for compatibility; a plain start already begins the game at once
+    --drill         run the square-colour drill, then start a game as usual
+    --progress      show your milestones and what to aim for next, then stop
+    --reset-rating  archive the rating log and start a fresh one (asks first)
 """
 
 import argparse
@@ -19,7 +24,7 @@ import chess
 
 from . import settings as config, ratings
 from .downloads import ensure_stockfish, ensure_vosk_model, SetupError
-from .game import Interface, Stop, choose_settings, play
+from .game import Interface, Stop, choose_settings, play, between_games, reset_rating, show_progress, run_square_drill
 from .moves import parse, describe_move
 from .speech import Speaker, VoiceInput, list_microphones
 
@@ -57,6 +62,16 @@ def main(argv=None):
     p.add_argument("--quiet", action="store_true", help="print replies without speaking them")
     p.add_argument("--hands-free", action="store_true", help="listen all the time, without pressing Enter")
     p.add_argument("--mic", type=int, default=None, help="microphone number to use")
+    p.add_argument("--setup", action="store_true",
+                   help="ask for colour, level, position limit and starting position before the game")
+    p.add_argument("--quick", action="store_true",
+                   help="accepted for compatibility; a plain start already begins the game at once")
+    p.add_argument("--drill", action="store_true",
+                   help="run the square-colour drill, then start a game as usual")
+    p.add_argument("--progress", action="store_true",
+                   help="show your milestones and what to aim for next, then stop")
+    p.add_argument("--reset-rating", action="store_true",
+                   help="archive the rating log and start a fresh one (asks first)")
     args = p.parse_args(argv)
 
     print("\n  THE DIFFERENT ENGINE\n  A blindfold chess partner, after Charles Babbage\n")
@@ -77,6 +92,9 @@ def main(argv=None):
     first_time = not os.path.exists(config.SETTINGS_FILE)
     s = config.load()
     speaker = Speaker(enabled=not args.quiet, rate=s["voice_rate"])
+    if args.progress:
+        show_progress(Interface(speaker, None))
+        return 0
     try:
         listener = None
         if not args.text:
@@ -96,15 +114,21 @@ def main(argv=None):
                 "Welcome. As this is your first time, would you like to test the microphone first?"):
             test_microphone(speaker, listener)
 
-        engine_path = ensure_stockfish(s["stockfish_path"])
         ui = Interface(speaker, listener)
+        if args.reset_rating:
+            reset_rating(ui)
+        if args.drill:
+            run_square_drill(ui)
+
+        engine_path = ensure_stockfish(s["stockfish_path"])
         speaker.say("Welcome to the Different Engine.")
         while True:
-            s = choose_settings(ui, s, first_time)
+            if args.setup:
+                s = choose_settings(ui, s, first_time)
+                first_time = False
             config.save(s)
-            first_time = False
-            play(ui, s, engine_path)
-            if not ui.yes_no("Would you like another game?"):
+            play(ui, s, engine_path, setup=args.setup)
+            if not between_games(ui):
                 speaker.say("Thank you for playing. Goodbye.")
                 return 0
     except (Stop, KeyboardInterrupt):

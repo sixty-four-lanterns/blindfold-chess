@@ -53,6 +53,16 @@ if errorlevel 1 goto pip_failed
 echo installed> ".venv\installed.txt"
 
 :run
+rem --- Desktop shortcut, created once --------------------------------------
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$desktop = [Environment]::GetFolderPath('Desktop'); if (-not $desktop -or -not (Test-Path $desktop)) { exit 0 }; $link = Join-Path $desktop 'The Different Engine.lnk'; if (Test-Path $link) { exit 0 }; $s = (New-Object -ComObject WScript.Shell).CreateShortcut($link); $s.TargetPath = '%~f0'; $s.WorkingDirectory = '%~dp0'; $s.WindowStyle = 1; $s.Description = 'The Different Engine'; $s.Save(); exit 10"
+if errorlevel 10 (
+  echo.
+  echo   I've put a shortcut called The Different Engine on your Desktop.
+  echo   Double-click it next time to start.
+  echo.
+)
+
 rem The Stockfish engine and the speech model are downloaded by the program itself.
 ".venv\Scripts\python.exe" -m different_engine %*
 if errorlevel 1 pause

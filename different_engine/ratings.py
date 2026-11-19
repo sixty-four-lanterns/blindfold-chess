@@ -10,6 +10,7 @@ only the most recent 30 are used (a rolling window).
 """
 
 import csv
+import datetime
 import os
 
 COLUMNS = [
@@ -67,6 +68,39 @@ def append_game(path, row):
         if new_file:
             writer.writeheader()
         writer.writerow({c: row.get(c, "") for c in columns})
+
+
+def update_game(path, pgn_file, updates):
+    """Update the existing log row for this PGN file.  Does not add a row.
+
+    Returns True if a row was found and rewritten.  Matching is by the
+    'PGN file' column, and the most recent match is the one updated.
+    """
+    if not os.path.exists(path) or os.path.getsize(path) == 0:
+        return False
+    upgrade_log(path)
+    with open(path, newline="", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+        columns = list(reader.fieldnames or COLUMNS)
+        rows = list(reader)
+    target = os.path.normpath(str(pgn_file))
+    found = False
+    for row in reversed(rows):
+        if os.path.normpath(row.get("PGN file", "")) == target:
+            for key, value in updates.items():
+                if value is None:
+                    continue
+                row[key] = value
+            found = True
+            break
+    if not found:
+        return False
+    with open(path, "w", newline="", encoding="utf-8-sig") as f:
+        writer = csv.DictWriter(f, fieldnames=columns, extrasaction="ignore")
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({c: row.get(c, "") for c in columns})
+    return True
 
 
 def result_value(text):
@@ -153,3 +187,24 @@ def report(games, current_opponent=None):
                              "Try moving the engine down a level, so that you score between about 30 and 70 per cent.")
     lines.append(CAUTIONS)
     return lines
+
+
+def archive_and_reset(path, today=None):
+    """Rename the rating log to rating_log_archived_YYYY-MM-DD.csv.
+
+    If that name is already taken, _2, _3 and so on are tried.  The original
+    file is never deleted.  Returns the path of the archive, or None if there
+    was no log to reset.
+    """
+    if not os.path.exists(path) or os.path.getsize(path) == 0:
+        return None
+    today = today or datetime.date.today()
+    folder = os.path.dirname(os.path.abspath(path)) or "."
+    base = f"rating_log_archived_{today:%Y-%m-%d}.csv"
+    dest = os.path.join(folder, base)
+    n = 2
+    while os.path.exists(dest):
+        dest = os.path.join(folder, f"rating_log_archived_{today:%Y-%m-%d}_{n}.csv")
+        n += 1
+    os.rename(path, dest)
+    return dest

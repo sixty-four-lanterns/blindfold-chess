@@ -21,7 +21,7 @@ Each turn goes round the same loop (Figure 13.1 in the book):
 5. **Legal and clear?** An illegal or ambiguous move is never guessed; you're asked to say it again.
 6. **The engine replies** at the strength you chose.
 7. **Text to speech.** The reply is spoken aloud: "Bishop to g4." Captures, checks and castling are announced.
-8. **Game over?** The game is saved as a PGN file, shown on screen, and added to your rating log, and your current blindfold rating is worked out.
+8. **Game over?** The game is saved as a PGN file and added to your rating log, and your current blindfold rating is spoken. After-game extras (the reconstruction test, a slip review and so on) run only if you say **review**.
 
 ## What you need
 
@@ -50,7 +50,7 @@ Each turn goes round the same loop (Figure 13.1 in the book):
    *If it can't install Python itself*, it opens python.org. Download Python, and in the installer **tick "Add python.exe to PATH"** before clicking **Install Now**.
 4. The first start takes a few minutes while it sets itself up and downloads the speech model and the Stockfish chess engine. Later starts take a few seconds.
 
-To start it next time, just double-click **Start-Windows.bat** again.
+The first time it starts, it also puts a shortcut called **The Different Engine** on your Desktop. After that, just double-click the shortcut (or **Start-Windows.bat** again).
 
 ### Raspberry Pi and other Linux computers
 
@@ -66,7 +66,7 @@ To start it next time, just double-click **Start-Windows.bat** again.
 
 To start it next time, open a terminal in the folder again and type `bash start-linux.sh`.
 
-*Prefer to double-click?* Type `chmod +x start-linux.sh` once in the terminal. After that you can double-click **start-linux.sh** and choose **Execute in Terminal**.
+The first time it starts, it also puts a shortcut called **The Different Engine** on your Desktop, if you have a Desktop folder. Double-click that next time (choose **Execute in Terminal** if asked). If the icon is not trusted at first, right-click it, choose **Properties** and allow it to launch, or type `chmod +x start-linux.sh` once in the terminal and double-click **start-linux.sh** itself.
 
 ### Mac
 
@@ -75,20 +75,29 @@ To start it next time, open a terminal in the folder again and type `bash start-
 3. If Python isn't installed, it tells you where to get it (python.org, the big yellow button). Install it, then repeat step 2.
 4. The first time, your Mac asks whether Terminal may use the microphone. Click **OK**.
 
-*Prefer to double-click?* In Terminal type `chmod +x ` (with a space), drag **start-mac.command** in, and press Enter. After that you can right-click **start-mac.command** and choose **Open** (the first time), and double-click it after that.
+*Prefer to double-click?* In Terminal type `chmod +x ` (with a space), drag **start-mac.command** in, and press Enter. After that you can right-click **start-mac.command** and choose **Open** (the first time), and double-click it after that. (The starter does not add a Desktop icon on a Mac by itself.)
 
 ## Step 3: Test the microphone
 
-The first time you start, it offers a microphone test. Say **"knight f3"** and check that it repeats it back correctly. Say **"stop"** to finish the test.
+The first time you start, and only that once, it offers a short microphone test. You can say no and go straight into a game. If you say yes, say **"knight f3"** and check that it repeats it back correctly, then say **"stop"** to finish the test.
 
 You can run the test again at any time; see [Extra options](#extra-options) below.
 
-## Step 4: Choose your settings
+## Step 4: It starts a game at once
 
-Before the game you choose, by voice or by typing:
+After the welcome it goes straight into a game, using your last settings, or, the first time, these usual ones: you play **White**, the engine is at **level 2**, and you may ask for the position **three** times. It says something like: "Welcome to the Different Engine. You're White, level 2, three position requests. Your move." If you are playing Black, it announces the engine's first move instead.
 
-- **Your colour:** white, black or random.
-- **The engine's level**, from 1 to 8:
+Before your first move you can:
+
+- Say **settings** to change your colour, the engine's level, your position-request limit, and whether to start from the usual opening position or a custom one.
+- Say **play black**, **play white**, **switch colours** or **random** to change sides. The game starts again from the beginning, and your choice is remembered.
+- Say **square drill** to run the spoken square-colour test (see [Square-colour drill](#square-colour-drill)).
+- Say **progress** to hear how many milestones you have earned, and what to aim for next.
+- Say **reset rating** to start your rating again from scratch. It asks you to confirm first, and keeps your old games in a dated file.
+
+To go through the full settings questions at launch, start the program with `--setup` (see [Extra options](#extra-options)).
+
+The engine has eight levels:
 
   | Level | Rough rating | | Level | Rough rating |
   |---|---|---|---|---|
@@ -97,14 +106,11 @@ Before the game you choose, by voice or by typing:
   | 3 | 1200 | | 7 | 2000 |
   | 4 | 1400 | | 8 | 2300 |
 
-  Start low. You're training to hold the position, not to beat a grandmaster in a box.
-- **How many times you may ask for the position** in each game: a number, or "unlimited".
-
-Your choices are remembered. Next time it simply asks, "Would you like the same settings again?"
+Start low. You're training to hold the position, not to beat a grandmaster in a box.
 
 ## Step 5: Usual start or your own position
 
-Next it asks whether to start from the **usual** opening position or a **custom** one.
+The usual opening position is used unless you have saved a custom one. To set a custom position, say **settings** before your first move (or start with `--setup`) and then say **custom**.
 
 If you say **custom**, a board opens in a window:
 
@@ -145,7 +151,8 @@ Speak as you would to a person: name the piece and the square, and say "takes" f
 - If your words could mean two different moves, or no legal move, it says so and asks again. It never guesses. Treat it as a free drill: picture the move on your mental board before you repeat it.
 - When you clearly name a move that isn't legal (a piece and a square, or notation), it quietly notes the move number and what you said, for the after-game report. Those are usually slips of the mental board: a piece that wasn't there, a blocked path, or a king left in check. Mishearings, half-heard moves and moves that could mean two things are never counted against you.
 - Every five moves (at moves 6, 11, 16 and so on) it says "This would be a good moment for a checkpoint", as a reminder to run through the position in your mind. It never reads the position for you. To switch the reminder off, change `"checkpoint_reminders"` to `false` in `settings.json`.
-- During the game it behaves like a sporting opponent and nothing more: no hints, no evaluations, no warnings about loose pieces. Those wait until the game is over.
+- After each move, a short **status line** is printed in the terminal, for example: `Move 12 | You: White | Level 3 | Position requests left: 2 | Blindfold rating: 1233 (14 games) | Milestones 9/22`. It never shows the board, the moves, or an evaluation.
+- During the game it behaves like a sporting opponent and nothing more: no hints, no evaluations, no warnings about loose pieces. Those wait until the game is over, and only if you ask for a review.
 
 ### Things you can ask for
 
@@ -154,7 +161,12 @@ Speak as you would to a person: name the piece and the square, and say "takes" f
 | **repeat** | Repeats the engine's last move. Always allowed. |
 | **position** | Reads out the whole position. Counts against your limit; once it's used up, it politely declines. |
 | **lost thread** | Tells it you have lost track of the position ("lost the thread" and "I've lost the thread" work too). It notes the move number for your after-game report and carries on; it doesn't read the position out. If you say it again, it keeps the first move. |
-| **help** | Reminds you what you can say, and how many position requests you have left. |
+| **help** | Reminds you what you can say, and how many position requests you have left. It also mentions the commands below. |
+| **settings** | Before your first move, opens the full settings dialogue (colour, level, position limit, and usual or custom start). After you have moved, it tells you it is too late for this game. |
+| **play white** / **play black** / **switch colours** / **random** | Before your first move, changes sides, starts the game again from the start, and remembers your choice. |
+| **square drill** / **colour drill** / **square colours** | Before your first move, or between games, runs the spoken square-colour drill. After you have moved, it tells you it is too late for this game. |
+| **progress** | Tells you how many milestones you have earned, with a short progress bar for each level, and the next two or three to aim for. You can say this during a game too. |
+| **reset rating** | Before your first move, or between games, starts your rating again from scratch, after asking you to confirm. Your old games are kept in a dated file. Milestones you have already earned are kept. |
 | **draw** | Offers a draw. The engine accepts if it doesn't think it is better (and not in the first 20 moves). |
 | **resign** | Resigns the game (it checks first). |
 | **rating** | Tells you your current blindfold rating. |
@@ -163,13 +175,17 @@ Speak as you would to a person: name the piece and the square, and say "takes" f
 
 When the game ends (checkmate, stalemate, a draw, or resignation):
 
-1. It asks **at which move you first lost the thread** of the position, using what it already knows. If you said "lost thread" during the game, it checks that move with you. If not, but you tried an illegal move, it reminds you of the first one (the move number and what you said) and asks whether that was where you lost the thread. Say yes, a move number, or "never". It then asks whether you **broke any of your honesty rules** (a peek, for example), and lets you type a one-line **note**.
-2. It **saves the game as a PGN file** in the `games` folder and **tells you where it was saved**, straight away, so nothing that follows can lose the game. (It doesn't show the game on screen yet, because that would give away the final position.)
-3. It offers a **reconstruction test**: "Would you like to reconstruct the final position from memory, on a blank board?" If you say yes, an empty board opens in a window, the right way round for the colour you played. Put the pieces where you think they stood at the end, using the mouse just as on the set-up board (click a piece, then click squares; drag to move; right-click to remove), then click **Check my position**. Nothing about the true position is shown until you do. You get **one point for each piece of the right type and colour on its correct square**, and your score as a percentage of the pieces in the true position. It also tells you how many squares had the wrong piece, how many pieces were missing, and how many extra pieces you put on empty squares. A perfect score means every piece is in place and nothing extra has been added. After the check you can click **Show the true position** to compare: green squares are right, red ones had the wrong piece or shouldn't have had a piece, and amber ones had a piece you left out. Click **Skip** if you'd rather not. The reconstruction board needs tkinter, the same as the set-up board (on Linux, `sudo apt install python3-tk`); if it can't open, it says so and carries on.
-4. It offers to **look through the game for the two or three biggest slips**. Stockfish, at full strength, spends a fraction of a second on each of your moves (a Raspberry Pi manages a ten-move game in a few seconds). For each slip it tells you the move number, what you played and what the engine preferred, roughly how much it cost, in plain words, and asks whether it was a **chess mistake** or a **visualisation mistake** (say "chess", "visualisation", "not sure", or "skip"). It also works out two plain figures for your moves: the **average centipawn loss** (a centipawn is a hundredth of a pawn; lower is better, and a single move counts for at most ten pawns, so one missed mate can't swamp the average) and **how many of your moves matched the engine's first choice**. These are not turned into a made-up "accuracy rating"; in this program the accuracy score is the reconstruction test.
-5. It **shows the whole game on screen**, with everything above in the PGN headers, and gives a short **summary**: where you first lost the thread, how many illegal moves you tried and when, how many times you asked for the position and when, your reconstruction score, and your move-quality figures if the game was looked through. Any chess program can open a PGN file. Go through the game with the analysis turned on, as described in Chapter 12.
-6. It adds a line to your **rating log** and tells you your **blindfold performance rating** (see below).
-7. It offers to **read all the moves of the game aloud**. Say yes or no.
+1. It **saves the game as a PGN file** in the `games` folder and **tells you where it was saved**, straight away, so nothing that follows can lose the game. (It doesn't show the game on screen yet, because that would give away the final position.)
+2. It adds a line to your **rating log** and tells you your **blindfold performance rating** (see below).
+3. It then says: **"Say review for the after-game review, or press Enter to carry on."** If you press Enter, say no, or skip, that is the end of it. If you have just earned any milestones, it tells you, for example: "New milestone: first checkmate. You've earned 9 of 22." It then asks whether you would like another game. You can also say **square drill**, **progress** or **reset rating** at that point. If you said **"lost thread"** during the game, that move has already been noted in the file.
+
+If you say **review**, it then:
+
+4. Asks **at which move you first lost the thread** of the position, using what it already knows. If you said "lost thread" during the game, it checks that move with you. If not, but you tried an illegal move, it reminds you of the first one (the move number and what you said) and asks whether that was where you lost the thread. Say yes, a move number, or "never". It then asks whether you **broke any of your honesty rules** (a peek, for example), and lets you type a one-line **note**. The PGN file and the rating-log row are then updated with your answers (it does not add a second row).
+5. Offers a **reconstruction test**: "Would you like to reconstruct the final position from memory, on a blank board?" If you say yes, an empty board opens in a window, the right way round for the colour you played. Put the pieces where you think they stood at the end, using the mouse just as on the set-up board (click a piece, then click squares; drag to move; right-click to remove), then click **Check my position**. Nothing about the true position is shown until you do. You get **one point for each piece of the right type and colour on its correct square**, and your score as a percentage of the pieces in the true position. It also tells you how many squares had the wrong piece, how many pieces were missing, and how many extra pieces you put on empty squares. A perfect score means every piece is in place and nothing extra has been added. After the check you can click **Show the true position** to compare: green squares are right, red ones had the wrong piece or shouldn't have had a piece, and amber ones had a piece you left out. Click **Skip** if you'd rather not. The reconstruction board needs tkinter, the same as the set-up board (on Linux, `sudo apt install python3-tk`); if it can't open, it says so and carries on.
+6. Offers to **look through the game for the two or three biggest slips**. The chess engine, at full strength, spends a fraction of a second on each of your moves (a Raspberry Pi manages a ten-move game in a few seconds). For each slip it tells you the move number, what you played and what the engine preferred, roughly how much it cost, in plain words, and asks whether it was a **chess mistake** or a **visualisation mistake** (say "chess", "visualisation", "not sure", or "skip"). It also works out two plain figures for your moves: the **average centipawn loss** (a centipawn is a hundredth of a pawn; lower is better, and a single move counts for at most ten pawns, so one missed mate can't swamp the average) and **how many of your moves matched the engine's first choice**. These are not turned into a made-up "accuracy rating"; in this program the accuracy score is the reconstruction test.
+7. **Shows the whole game on screen**, with everything above in the PGN headers, and gives a short **summary**: where you first lost the thread, how many illegal moves you tried and when, how many times you asked for the position and when, your reconstruction score, and your move-quality figures if the game was looked through. Any chess program can open a PGN file. Go through the game with the analysis turned on, as described in Chapter 12.
+8. Offers to **read all the moves of the game aloud**. Say yes or no.
 
 ## Your blindfold rating (the strength gauge)
 
@@ -195,6 +211,41 @@ How the Different Engine uses it:
 
 To see your rating without playing, use the `--rating` option (see below).
 
+To **start your rating again**, say **reset rating** before your first move or between games, or start the program with `--reset-rating`. It asks you to confirm. On yes, it renames `rating_log.csv` to something like `rating_log_archived_2026-11-19.csv` (or `_2` if that name is already used) and starts a fresh log. Your old games are never deleted. Milestones you have already earned stay earned.
+
+---
+
+## Square-colour drill
+
+This is a spoken version of the Colour flash drill in Chapter 3 of the book, and it uses the same target: thirty squares in thirty seconds. Say **square drill** (or **colour drill**, or **square colours**) before your first move or between games, or start the program with `--drill`.
+
+It names thirty random squares, using the spelling alphabet so the file letter is hard to mishear, for example "delta five". The square is also printed on the screen. After each one, say **light** or **dark** (or type it, in text mode). **White** and **black** are accepted too. It tells you at once whether you were right, and if not, what the colour was: "Right." or "No, light."
+
+At the end it tells you your score out of 30 and the time in seconds, and whether that was your best so far. Each attempt is added to a file called `drill_log.csv` in the Different Engine folder (date, score, total, seconds), which opens in any spreadsheet. A perfect 30 out of 30, a perfect score in under a minute, and a perfect score in under 30 seconds (the book's Colour flash target) each earn a milestone. Older log rows from when the drill was twenty squares are kept, but they do not count towards those milestones.
+
+---
+
+## Milestones and progress
+
+The program keeps a short list of milestones, worked out automatically from your rating log and your drill log. They are grouped in four levels: **Foundations**, **First games**, **Holding the board** and **Mastery**. You don't have to tick anything yourself. A file called `milestones.json` stores the date each one was first earned. If you add games or drill results to the logs by hand, they are counted too.
+
+After each game, and after each square-colour drill, any newly earned milestone is announced, for example: "New milestone: first checkmate. You've earned 9 of 22."
+
+Say **progress**, or start the program with `--progress`, to hear (and see) a text progress bar for each level, and the next two or three milestones to aim for:
+
+```
+Foundations [###] 3/3
+First games [##---] 2/5
+Holding the board [-----] 0/6
+Mastery [-----] 0/8
+You've earned 5 of 22 milestones.
+Next up: Reach move 20 without asking for the position. Play a game with no illegal move attempts. Deliver a checkmate in a blindfold game.
+```
+
+The status line during a game also shows `Milestones 9/22`. It never shows the board or an evaluation.
+
+If you reset your rating, milestones you have already earned are kept. A later check of the logs will only add new ones; it never takes one away.
+
 ---
 
 ## Extra options
@@ -209,12 +260,17 @@ You can add an option when you start the program:
 | `--quiet` | Prints the replies without speaking them. |
 | `--hands-free` | Listens all the time, so you don't need to press Enter. Best with a headset. |
 | `--mic 2` | Uses microphone number 2 (the microphone test lists the numbers). |
+| `--setup` | Asks for your colour, the engine's level, your position-request limit and the starting position before the game, as it used to do at every launch. After the first time it also asks, "Would you like the same settings again?" |
+| `--quick` | Does nothing extra: a plain start already begins the game at once. Kept so that older shortcuts still work. You can add it to other options, for example `--hands-free`. |
+| `--drill` | Runs the square-colour drill, then starts a game as usual. |
+| `--progress` | Shows your milestones and what to aim for next, then stops. |
+| `--reset-rating` | Asks you to confirm, then archives the rating log and starts a fresh one. A game then starts as usual. |
 
 How to add an option:
 
-- **Windows:** open the folder, click in the address bar at the top, type `cmd` and press Enter. In the black window type, for example, `Start-Windows.bat --text` and press Enter.
-- **Raspberry Pi / Linux:** in the terminal, type for example `bash start-linux.sh --test-mic`.
-- **Mac:** in Terminal, type `bash `, drag in start-mac.command, type ` --rating` and press Enter.
+- **Windows:** open the folder, click in the address bar at the top, type `cmd` and press Enter. In the black window type, for example, `Start-Windows.bat --text` and press Enter. For the full settings questions, type `Start-Windows.bat --setup`.
+- **Raspberry Pi / Linux:** in the terminal, type for example `bash start-linux.sh --test-mic`, or `bash start-linux.sh --setup`.
+- **Mac:** in Terminal, type `bash `, drag in start-mac.command, type a space and the option (for example ` --setup` or ` --rating`) and press Enter. You can also type the whole line: `bash start-mac.command --setup`.
 
 If it can't find a microphone at all, it tells you and lets you play by typing instead.
 
@@ -226,7 +282,7 @@ Everything stays inside the Different Engine folder:
 |---|---|
 | `games` | Your saved games (PGN files). |
 | `rating_log.csv` | Your rating log, one row per game. |
-| `settings.json` | Your last settings. Delete it to be asked everything afresh. |
+| `settings.json` | Your last settings. Delete it to go back to the usual start (White, level 2, three position requests). |
 | `models` | The speech-recognition model (downloaded on first run). |
 | `engine` | The Stockfish chess engine, if it had to be downloaded. |
 | `.venv` | The program's private copy of the Python parts. |
@@ -254,7 +310,7 @@ Speech recognition runs offline on your own machine. Your voice and your games s
 
 ### For the technically minded
 
-The program is in the `different_engine` folder: `moves.py` (understanding spoken moves and describing moves and positions), `speech.py` (listening and speaking), `engine.py` (Stockfish levels), `ratings.py` (the rating log and formula), `board_editor.py` (the set-up board, and the board drawing it shares with the reconstruction test), `reconstruction.py` (the reconstruction test and its scoring), `review.py` (the slip review and the after-game summary), `game.py` (the loop) and `downloads.py` (first-run downloads). To run the tests: `.venv/bin/python -m pip install pytest`, then `.venv/bin/python -m pytest` (on Windows, `.venv\Scripts\python`).
+The program is in the `different_engine` folder: `moves.py` (understanding spoken moves and describing moves and positions), `speech.py` (listening and speaking), `engine.py` (Stockfish levels), `ratings.py` (the rating log, formula and rating reset), `drill.py` (the square-colour drill), `milestones.py` (milestones and the progress bar), `board_editor.py` (the set-up board, and the board drawing it shares with the reconstruction test), `reconstruction.py` (the reconstruction test and its scoring), `review.py` (the slip review and the after-game summary), `game.py` (the loop) and `downloads.py` (first-run downloads). To run the tests: `.venv/bin/python -m pip install pytest`, then `.venv/bin/python -m pytest` (on Windows, `.venv\Scripts\python`).
 
 ## Licence
 

@@ -141,6 +141,10 @@ def test_en_passant():
     ("resign", "resign"), ("draw", "draw"), ("offer a draw", "draw"), ("help", "help"), ("rating", "rating"),
     ("lost thread", "lost thread"), ("lost the thread", "lost thread"), ("I've lost the thread", "lost thread"),
     ("I have lost the thread", "lost thread"), ("Lost the thread!", "lost thread"),
+    ("progress", "progress"), ("my progress", "progress"),
+    ("square drill", "square drill"), ("colour drill", "square drill"), ("color drill", "square drill"),
+    ("square colours", "square drill"), ("square colors", "square drill"),
+    ("reset rating", "reset rating"), ("reset my rating", "reset rating"), ("reset the rating", "reset rating"),
 ])
 def test_commands(text, command):
     r = parse(START, text)

@@ -122,3 +122,32 @@ def test_hand_added_columns_are_kept(tmp_path):
         rows = list(csv.DictReader(f))
     assert rows[0]["My column"] == "keep me" and rows[1]["My column"] == ""
     assert len(ratings.read_games(path)) == 2
+
+
+def test_update_game_rewrites_row_without_duplicating(tmp_path):
+    path = tmp_path / "log.csv"
+    ratings.append_game(path, {"Date": "2026-11-19", "Opponent": "Level 3", "Opponent rating": 1200,
+                               "Result": "1", "PGN file": "games/a.pgn", "Notes": ""})
+    ratings.append_game(path, {"Date": "2026-11-19", "Opponent": "Level 3", "Opponent rating": 1200,
+                               "Result": "0", "PGN file": "games/b.pgn", "Notes": ""})
+    assert ratings.update_game(path, "games/b.pgn", {"Notes": "updated", "First lost thread": "7"})
+    rows = list(__import__("csv").DictReader(path.open(newline="", encoding="utf-8-sig")))
+    assert len(rows) == 2
+    assert rows[0]["Notes"] == "" and rows[0]["PGN file"] == "games/a.pgn"
+    assert rows[1]["Notes"] == "updated" and rows[1]["First lost thread"] == "7"
+    assert rows[1]["Result"] == "0"
+    assert not ratings.update_game(path, "games/missing.pgn", {"Notes": "nope"})
+    rows = list(__import__("csv").DictReader(path.open(newline="", encoding="utf-8-sig")))
+    assert len(rows) == 2
+
+
+def test_archive_and_reset(tmp_path):
+    import datetime
+    path = tmp_path / "rating_log.csv"
+    ratings.append_game(path, {"Date": "2026-11-01", "Opponent": "x", "Opponent rating": 1000, "Result": "1"})
+    assert ratings.archive_and_reset(path, today=datetime.date(2026, 11, 19)).endswith(
+        "rating_log_archived_2026-11-19.csv")
+    assert not path.exists()
+    assert (tmp_path / "rating_log_archived_2026-11-19.csv").exists()
+    assert ratings.read_games(tmp_path / "rating_log_archived_2026-11-19.csv")[0]["result"] == 1.0
+    assert ratings.archive_and_reset(path) is None

@@ -7,6 +7,49 @@
 
 cd "$(dirname "$0")" || exit 1
 
+create_desktop_shortcut() {
+    # Put a double-click starter on the Desktop, once, if a Desktop folder exists.
+    local desktop dest app
+    app="$(pwd)"
+    if [ -n "${DE_DESKTOP_DIR:-}" ]; then
+        desktop="$DE_DESKTOP_DIR"
+    elif command -v xdg-user-dir >/dev/null 2>&1; then
+        desktop="$(xdg-user-dir DESKTOP 2>/dev/null || true)"
+    fi
+    [ -n "$desktop" ] || desktop="$HOME/Desktop"
+    [ -d "$desktop" ] || return 0
+    dest="$desktop/The Different Engine.desktop"
+    if [ -e "$dest" ]; then
+        return 0
+    fi
+    cat > "$dest" <<EOF
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=The Different Engine
+Comment=A voice-driven blindfold chess partner
+Exec=bash "$app/start-linux.sh"
+Path=$app
+Terminal=true
+StartupNotify=true
+Categories=Game;BoardGame;
+EOF
+    chmod +x "$dest"
+    if command -v gio >/dev/null 2>&1; then
+        gio set "$dest" metadata::trusted true 2>/dev/null || true
+    fi
+    echo
+    echo "  I've put a shortcut called The Different Engine on your Desktop."
+    echo "  Double-click it next time to start (choose Execute in Terminal if asked)."
+    echo
+}
+
+# Used by the tests: create the shortcut and stop, without starting the program.
+if [ "${DE_CREATE_SHORTCUT_ONLY:-}" = "1" ]; then
+    create_desktop_shortcut
+    exit 0
+fi
+
 finish() {
     echo
     read -r -p "Press Enter to close this window. " _
@@ -81,6 +124,7 @@ if [ ! -f .venv/installed.txt ] || [ requirements.txt -nt .venv/installed.txt ];
 fi
 
 # --- Start -----------------------------------------------------------------
+create_desktop_shortcut
 .venv/bin/python -m different_engine "$@"
 status=$?
 if [ $status -ne 0 ]; then

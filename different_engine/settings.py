@@ -10,6 +10,8 @@ MODELS_DIR = os.path.join(APP_DIR, "models")
 ENGINE_DIR = os.path.join(APP_DIR, "engine")
 SETTINGS_FILE = os.path.join(APP_DIR, "settings.json")
 RATING_LOG = os.path.join(APP_DIR, "rating_log.csv")
+DRILL_LOG = os.path.join(APP_DIR, "drill_log.csv")
+MILESTONES_FILE = os.path.join(APP_DIR, "milestones.json")
 
 DEFAULTS = {
     "colour": "white",          # "white", "black" or "random"
