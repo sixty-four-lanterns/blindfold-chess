@@ -602,6 +602,8 @@ def test_session_command_phrases():
     assert game.session_command("commands") == "help"
     assert game.session_command("what can I say") == "help"
     assert game.session_command("last move") is None
+    assert game.session_command("show moves") is None
+    assert game.session_command("show board") == "show-board"
     assert game.session_command("level 4") == "level"
     assert game.session_command("set level four") == "level"
     assert game.session_command("e4") is None
@@ -699,6 +701,7 @@ def test_format_help_marks_current_group_and_stays_compact():
     assert "Before your first move, or between games" in text
     assert "take back / undo / go back" in text
     assert "last move" in text
+    assert "show moves                     The whole game on screen (uses a position request)" in text
     assert "level 1 to 8" in text
     assert "light / dark" in text
     assert "visualisation" in text
@@ -1042,5 +1045,86 @@ def test_position_request_count_is_printed_not_spoken(setup, capsys):
     assert "Try to rebuild the position in your mind" not in said
     assert ("  I'm sorry, you have used all 1 of your position requests for this game. "
             "Try to rebuild the position in your mind, then tell me your move.") in out
+    (row,) = read_log(tmp_path)
+    assert int(row["Position requests"]) == 1
+
+
+def test_show_moves_prints_score_sheet_and_uses_a_request(setup, capsys):
+    speaker, script, tmp_path = setup
+    s = dict(config.DEFAULTS, colour="white", level=2, position_limit=3)
+    script(["e4", "show moves", "resign", "yes", ""])
+    game.play(game.Interface(speaker), s, "/fake/stockfish")
+    said = "\n".join(speaker.said)
+    out = capsys.readouterr().out
+    assert "  1. e4 e5" in out
+    assert "  That was position request 1 of 3." in out
+    # Nothing about the moves, and no request count, is spoken.
+    assert "1. e4 e5" not in said
+    assert "Moves on screen" not in said
+    assert "That was position request" not in said
+    assert "No moves yet." not in out
+    (row,) = read_log(tmp_path)
+    assert int(row["Position requests"]) == 1
+    assert row["Position request moves"] == "2"
+
+
+def test_show_moves_with_no_moves_does_not_use_a_request(setup, capsys):
+    speaker, script, tmp_path = setup
+    s = dict(config.DEFAULTS, colour="white", level=2, position_limit=3)
+    script(["show moves", "resign", "yes", ""])
+    game.play(game.Interface(speaker), s, "/fake/stockfish")
+    said = "\n".join(speaker.said)
+    out = capsys.readouterr().out
+    assert "  No moves yet." in out
+    assert "That was position request" not in out
+    assert "No moves yet." not in said
+    (row,) = read_log(tmp_path)
+    assert int(row["Position requests"]) == 0
+
+
+def test_show_moves_respects_the_position_request_limit(setup, capsys):
+    speaker, script, tmp_path = setup
+    s = dict(config.DEFAULTS, colour="white", level=2, position_limit=1)
+    script(["e4", "show moves", "show moves", "resign", "yes", ""])
+    game.play(game.Interface(speaker), s, "/fake/stockfish")
+    said = "\n".join(speaker.said)
+    out = capsys.readouterr().out
+    assert out.count("  1. e4 e5") == 1
+    assert "  That was position request 1 of 1." in out
+    assert "That was position request 1 of 1." not in said
+    assert "Sorry, you've used all your position requests for this game." in said
+    assert "I'm sorry, you have used all 1 of your position requests" not in said
+    assert "Try to rebuild the position in your mind" not in said
+    assert ("  I'm sorry, you have used all 1 of your position requests for this game. "
+            "Try to rebuild the position in your mind, then tell me your move.") in out
+    (row,) = read_log(tmp_path)
+    assert int(row["Position requests"]) == 1
+
+
+def test_show_moves_unlimited_position_requests(setup, capsys):
+    speaker, script, tmp_path = setup
+    s = dict(config.DEFAULTS, colour="white", level=2, position_limit=-1)
+    script(["e4", "show moves", "show moves", "resign", "yes", ""])
+    game.play(game.Interface(speaker), s, "/fake/stockfish")
+    said = "\n".join(speaker.said)
+    out = capsys.readouterr().out
+    assert out.count("  1. e4 e5") == 2
+    assert "That was position request" not in out
+    assert "That was position request" not in said
+    assert "used all your position requests" not in said
+    (row,) = read_log(tmp_path)
+    assert int(row["Position requests"]) == 2
+
+
+def test_last_moves_is_unaffected_by_show_moves(setup, capsys):
+    speaker, script, tmp_path = setup
+    s = dict(config.DEFAULTS, colour="white", level=2, position_limit=3)
+    script(["e4", "last moves", "show moves", "last move", "resign", "yes", ""])
+    game.play(game.Interface(speaker), s, "/fake/stockfish")
+    said = "\n".join(speaker.said)
+    out = capsys.readouterr().out
+    assert said.count("Your last move was pawn to e4, and I played pawn to e5.") == 2
+    assert "  1. e4 e5" in out
+    assert "  That was position request 1 of 3." in out
     (row,) = read_log(tmp_path)
     assert int(row["Position requests"]) == 1

@@ -179,6 +179,7 @@ def grammar_phrases():
         "say last move", "what did you play",
         "show board", "show the board", "show me the board", "board",
         "see the board", "view board",
+        "show moves", "show the moves", "show me the moves",
         "my rating", "what is my rating",
         "progress", "milestones", "my milestones", "how am i doing",
         "achievements", "progress report", "process", "congress",

@@ -85,6 +85,11 @@ LAST_MOVE_PHRASE = re.compile(
 SHOW_BOARD_PHRASE = re.compile(
     r"^(?:(?:please\s+)?(?:show|see|view)\s+(?:me\s+)?(?:the\s+)?board(?:\s+please)?|board)$"
 )
+# In-game: print the score sheet (uses a position request).  Must not match
+# "show board" or "last moves".
+SHOW_MOVES_PHRASE = re.compile(
+    r"^(?:(?:please\s+)?show\s+(?:me\s+)?(?:the\s+)?moves(?:\s+please)?)$"
+)
 # "level" on its own is not a command; a number from 1 to 8 must follow.
 LEVEL_COMMAND = re.compile(
     r"\b(?:set\s+level|change\s+level(?:\s+to)?|level(?:\s+to)?)\b"
@@ -258,6 +263,7 @@ COMMAND_PHRASES = (
     "last move", "last moves", "what was the last move", "say last move",
     "what did you play",
     "show board", "show the board", "show me the board",
+    "show moves", "show the moves", "show me the moves",
 )
 
 
@@ -316,6 +322,8 @@ def _command_for_phrase(phrase):
         return "rating"
     if "last move" in phrase or phrase == "what did you play":
         return "last move"
+    if "moves" in phrase:
+        return "show moves"
     if "board" in phrase:
         return "show board"
     return phrase
@@ -326,6 +334,7 @@ def special_command(text, fuzzy=True):
 
     'reset rating' has to be recognised before 'rating', 'take back' before
     'take' is treated as a capture, 'last move' before any use of 'last',
+    'show moves' after 'show board' and 'last moves' so they are not confused,
     and 'square drill' before the word
     'square' is dropped as filler.  'milestones' is accepted as well as
     'progress', together with common mishearings of a British 'progress'.
@@ -339,6 +348,8 @@ def special_command(text, fuzzy=True):
         return "help"
     if SHOW_BOARD_PHRASE.match(t):
         return "show board"
+    if SHOW_MOVES_PHRASE.match(t):
+        return "show moves"
     if RESET_RATING_PHRASE.search(t):
         return "reset rating"
     if TAKEBACK_PHRASE.search(t):
@@ -540,6 +551,19 @@ def for_speech(text):
     text = re.sub(r"\b([a-h])([1-8])\b", lambda m: f"{LETTER_SOUNDS[m.group(1)]} {m.group(2)}", text)
     text = re.sub(r"\b([a-hA-H])-pawn\b", lambda m: f"{LETTER_SOUNDS[m.group(1).lower()]} pawn", text)
     return text
+
+
+def format_move_list(board):
+    """The game so far as one line of standard SAN, or None if no moves yet.
+
+    Starts from the board's root position, so a custom start with Black to
+    move is written in the usual '1... e5' style.
+    """
+    moves = list(board.move_stack)
+    if not moves:
+        return None
+    # variation_san writes "1...e5"; the usual form has a space after the dots.
+    return re.sub(r"\.\.\.(?=\S)", "... ", board.root().variation_san(moves))
 
 
 def describe_game(start_board, moves):

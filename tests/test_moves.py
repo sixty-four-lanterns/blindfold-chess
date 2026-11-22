@@ -4,9 +4,9 @@ import chess
 import pytest
 
 from different_engine.moves import (parse, normalise, describe_move, describe_position,
-                                    for_speech, describe_game, parse_number, is_illegal_attempt,
-                                    is_help_command, special_command, fuzzy_command, parse_level_command,
-                                    join_words, number_word)
+                                    for_speech, describe_game, format_move_list, parse_number,
+                                    is_illegal_attempt, is_help_command, special_command,
+                                    fuzzy_command, parse_level_command, join_words, number_word)
 
 
 def san(board, text):
@@ -142,6 +142,9 @@ def test_en_passant():
     ("last move", "last move"), ("last moves", "last move"),
     ("what was the last move", "last move"), ("say last move", "last move"),
     ("what did you play", "last move"), ("What did you play?", "last move"),
+    ("show moves", "show moves"), ("Show moves!", "show moves"),
+    ("show the moves", "show moves"), ("show me the moves", "show moves"),
+    ("please show moves", "show moves"),
     ("resign", "resign"), ("draw", "draw"), ("offer a draw", "draw"), ("help", "help"), ("commands", "help"),
     ("what can I say", "help"), ("what can i say?", "help"), ("Help!", "help"),
     ("rating", "rating"),
@@ -248,6 +251,9 @@ def test_speech_grammar_uses_known_words():
     assert "help" in phrases and "commands" in phrases and "what can i say" in phrases
     assert "last move" in phrases and "what did you play" in phrases
     assert "say last move" in phrases and "what was the last move" in phrases
+    assert "show moves" in phrases and "show the moves" in phrases
+    assert "show me the moves" in phrases
+    assert "show board" in phrases
     assert "level four" in phrases and "set level four" in phrases
     assert "change level to four" in phrases
     # every phrase the recogniser can produce should parse without crashing
@@ -345,5 +351,42 @@ def test_session_commands_are_in_speech_grammar():
     from different_engine.speech import grammar_phrases
     g = set(grammar_phrases())
     for phrase in ("drill", "square drill", "reset rating", "settings", "review",
-                   "play white", "play black", "switch colours", "show board"):
+                   "play white", "play black", "switch colours", "show board",
+                   "show moves"):
         assert phrase in g, phrase
+
+
+def test_show_moves_is_not_confused_with_last_moves_or_show_board():
+    assert parse(START, "show moves").command == "show moves"
+    assert parse(START, "last moves").command == "last move"
+    assert parse(START, "last move").command == "last move"
+    assert parse(START, "show board").command == "show board"
+    assert parse(START, "show the board").command == "show board"
+    assert parse(START, "show me the board").command == "show board"
+    # Bare "moves", and near-misses, must not trigger the new command.
+    assert parse(START, "moves").kind == "problem"
+    assert parse(START, "moves").command is None
+    assert special_command("moves") is None
+    assert special_command("list moves") != "show moves"
+    assert special_command("move list") != "show moves"
+    assert special_command("score sheet") != "show moves"
+    # "show moves" is an in-game command, not a between-games session command.
+    from different_engine import game
+    assert game.session_command("show moves") is None
+    assert game.session_command("show board") == "show-board"
+
+
+def test_format_move_list_uses_standard_san():
+    assert format_move_list(chess.Board()) is None
+    board = chess.Board()
+    for move in ("e4", "e6", "Nf3", "d5", "Bb5"):
+        board.push_san(move)
+    assert format_move_list(board) == "1. e4 e6 2. Nf3 d5 3. Bb5+"
+    # Custom start with Black to move uses the 1... style.
+    black_start = chess.Board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 1")
+    assert format_move_list(black_start) is None
+    black_start.push_san("e5")
+    assert format_move_list(black_start) == "1... e5"
+    black_start.push_san("e4")
+    black_start.push_san("Nc6")
+    assert format_move_list(black_start) == "1... e5 2. e4 Nc6"

@@ -15,8 +15,8 @@ import chess.pgn
 from . import drill, milestones, ratings, review, settings as config
 from .engine import Engine, LEVELS, level_name, level_rating
 from .moves import (parse, describe_move, describe_position, describe_game, parse_number,
-                    is_illegal_attempt, is_help_command, number_word, special_command,
-                    parse_level_command)
+                    format_move_list, is_illegal_attempt, is_help_command, number_word,
+                    special_command, parse_level_command)
 from .reconstruction import describe_reconstruction, short_score
 
 
@@ -385,6 +385,7 @@ def format_help(context=None, requests_left=None):
         "  last move                      Your last move and my reply",
         "  take back / undo / go back     Undo your last move and its reply",
         "  position                       Hear the position (uses a request)",
+        "  show moves                     The whole game on screen (uses a position request)",
     ]
     requests = _help_requests_line(requests_left)
     if requests and context in ("during", "before", None):
@@ -829,6 +830,22 @@ def play(ui, s, engine_path, setup=False, quick=None):
                         ui.say(describe_position(board))
                         if limit >= 0:
                             # The count is already on the status line; don't speak it.
+                            print("  " + f"That was position request {used} of {limit}.")
+                        print_status(board, player, game_level, limit, used, takebacks=log["takebacks"])
+                    else:
+                        ui.say("Sorry, you've used all your position requests for this game.")
+                        print("  " + (f"I'm sorry, you have used all {limit} of your position requests "
+                                      "for this game. Try to rebuild the position in your mind, "
+                                      "then tell me your move."))
+                elif r.command == "show moves":
+                    # Printed only: the score sheet is never spoken.
+                    if not board.move_stack:
+                        print("  No moves yet.")
+                    elif limit < 0 or used < limit:
+                        used += 1
+                        log["requests"].append(board.fullmove_number)
+                        print("  " + format_move_list(board))
+                        if limit >= 0:
                             print("  " + f"That was position request {used} of {limit}.")
                         print_status(board, player, game_level, limit, used, takebacks=log["takebacks"])
                     else:
