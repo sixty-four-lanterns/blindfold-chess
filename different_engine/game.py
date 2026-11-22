@@ -727,7 +727,7 @@ def play(ui, s, engine_path, setup=False, quick=None):
 
                 if s.get("checkpoint_reminders", True) and checkpoint_due(board, player, reminded):
                     reminded.add(board.fullmove_number)
-                    ui.say(CHECKPOINT)
+                    print("  " + CHECKPOINT)                     # on screen only: not spoken
 
                 ui.help_context = "before" if not player_has_moved else "during"
                 ui.help_requests_left = "unlimited" if limit < 0 else max(0, limit - used)
@@ -1105,7 +1105,7 @@ def finish(ui, s, board, start_fen, player, result, termination, used, log=None,
 
     games = ratings.read_games(config.RATING_LOG)
     for line in ratings.report(games, opponent):
-        if line.startswith("With only"):
+        if line.startswith("With only") or line == ratings.CAUTIONS:
             print("  " + line)      # on screen only: it would be repetitive to hear every game
         else:
             ui.say(line)

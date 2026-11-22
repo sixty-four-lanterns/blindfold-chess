@@ -63,7 +63,7 @@ def read_log(tmp_path):
         return list(csv.DictReader(f))
 
 
-def test_whole_game_and_report(setup, monkeypatch):
+def test_whole_game_and_report(setup, monkeypatch, capsys):
     speaker, script, tmp_path = setup
     s = dict(config.DEFAULTS, colour="white", level=2, position_limit=3)
 
@@ -103,7 +103,8 @@ def test_whole_game_and_report(setup, monkeypatch):
     game.play(game.Interface(speaker), s, "/fake/stockfish")
     said = "\n".join(speaker.said)
 
-    assert said.count(game.CHECKPOINT) == 1
+    assert game.CHECKPOINT not in said               # shown on screen only, never spoken
+    assert capsys.readouterr().out.count(game.CHECKPOINT) == 1
     assert "I'll note that you lost the thread at move 3" in said
     assert "already noted that you first lost the thread at move 3" in said
     assert "During the game you told me you had lost the thread at move 3" in said
@@ -189,7 +190,7 @@ def test_not_sure_is_not_yes():
     assert game.is_yes("yes please".split()) and not game.is_yes("not sure".split())
 
 
-def test_default_play_skips_start_and_skips_review_if_declined(setup):
+def test_default_play_skips_start_and_skips_review_if_declined(setup, capsys):
     speaker, script, tmp_path = setup
     s = dict(config.DEFAULTS, colour="white", level=5, position_limit=2, checkpoint_reminders=True)
     script([
@@ -205,7 +206,8 @@ def test_default_play_skips_start_and_skips_review_if_declined(setup):
 
     assert "You're White, level 5, two position requests." in said
     assert "Shall we start from the usual opening position" not in said
-    assert game.CHECKPOINT in said                   # reminders follow settings.json, default on
+    assert game.CHECKPOINT not in said               # on screen only
+    assert game.CHECKPOINT in capsys.readouterr().out  # reminders follow settings.json, default on
     assert "I'll note that you lost the thread at move 3" in said
     assert "already noted that you first lost the thread at move 3" in said
     assert "Say review for the after-game review" in said
@@ -514,7 +516,7 @@ def test_review_updates_pgn_and_log_without_duplicating_row(setup, monkeypatch):
     assert read_pgn(tmp_path).headers["FirstLostThread"] == "2"
 
 
-def test_checkpoint_off_when_settings_say_so(setup):
+def test_checkpoint_off_when_settings_say_so(setup, capsys):
     speaker, script, tmp_path = setup
     s = dict(config.DEFAULTS, colour="white", level=2, checkpoint_reminders=False)
     script([
@@ -523,6 +525,7 @@ def test_checkpoint_off_when_settings_say_so(setup):
     ])
     game.play(game.Interface(speaker), s, "/fake/stockfish")
     assert game.CHECKPOINT not in "\n".join(speaker.said)
+    assert game.CHECKPOINT not in capsys.readouterr().out
 
 
 def test_status_line_after_moves_has_no_board_or_eval(setup, capsys):

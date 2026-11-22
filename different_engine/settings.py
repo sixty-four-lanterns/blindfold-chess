@@ -23,7 +23,7 @@ DEFAULTS = {
     "hands_free": False,        # True: listen continuously instead of pressing Enter
     "voice_rate": 160,          # speaking speed, words per minute
     "microphone": None,         # device number from --test-mic, or None for the default
-    "checkpoint_reminders": True,   # a short "good moment for a checkpoint" every five moves
+    "checkpoint_reminders": True,   # a short on-screen "good moment for a checkpoint" every five moves
 }
 
 
