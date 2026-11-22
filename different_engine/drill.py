@@ -180,18 +180,18 @@ def summarise(score, total, seconds, previous=None, new_best=False):
 # A short click for a correct answer
 # ---------------------------------------------------------------------------
 
-CLICK_SECONDS = 0.04
+CLICK_SECONDS = 0.12   # long and loud enough to hear clearly (was 0.04)
 CLICK_RATE = 22050
-CLICK_FREQ = 1200
+CLICK_FREQ = 1000
 
 
-def click_wav_bytes(freq=CLICK_FREQ, duration=CLICK_SECONDS, rate=CLICK_RATE, amplitude=0.45):
+def click_wav_bytes(freq=CLICK_FREQ, duration=CLICK_SECONDS, rate=CLICK_RATE, amplitude=0.95):
     """A very short decaying tone, as WAV file bytes."""
     n = int(rate * duration)
     frames = bytearray()
     for i in range(n):
         t = i / rate
-        env = math.exp(-t * 80)
+        env = math.exp(-t * 25)
         sample = int(amplitude * env * 32767 * math.sin(2 * math.pi * freq * t))
         frames += struct.pack("<h", max(-32768, min(32767, sample)))
     # A minimal 16-bit mono WAV header (44 bytes) plus the samples

@@ -405,7 +405,7 @@ def test_packaged_click_wav_is_a_short_wave_file():
         assert w.getnchannels() == 1
         assert w.getsampwidth() == 2
         assert w.getframerate() == drill.CLICK_RATE
-        assert 0 < w.getnframes() / w.getframerate() <= 0.1
+        assert 0 < w.getnframes() / w.getframerate() <= 0.2
 
 
 def test_drill_colour_words_are_in_the_speech_grammar():

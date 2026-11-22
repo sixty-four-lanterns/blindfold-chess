@@ -827,11 +827,14 @@ def play(ui, s, engine_path, setup=False, quick=None):
                         log["requests"].append(board.fullmove_number)
                         ui.say(describe_position(board))
                         if limit >= 0:
-                            ui.say(f"That was position request {used} of {limit}.")
+                            # The count is already on the status line; don't speak it.
+                            print("  " + f"That was position request {used} of {limit}.")
                         print_status(board, player, game_level, limit, used, takebacks=log["takebacks"])
                     else:
-                        ui.say(f"I'm sorry, you have used all {limit} of your position requests for this game. "
-                               "Try to rebuild the position in your mind, then tell me your move.")
+                        ui.say("Sorry, you've used all your position requests for this game.")
+                        print("  " + (f"I'm sorry, you have used all {limit} of your position requests "
+                                      "for this game. Try to rebuild the position in your mind, "
+                                      "then tell me your move."))
                 elif r.command == "lost thread":
                     if log["lost_mark"] is None:
                         log["lost_mark"] = board.fullmove_number

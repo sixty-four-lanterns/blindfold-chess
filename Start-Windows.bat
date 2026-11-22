@@ -7,9 +7,6 @@ rem simply starts the program. Just double-click it.
 setlocal
 title The Different Engine
 cd /d "%~dp0"
-echo.
-echo   The Different Engine
-echo.
 
 rem --- Find Python 3.9 or newer ----------------------------------------------
 set "PY="

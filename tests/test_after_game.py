@@ -113,6 +113,8 @@ def test_whole_game_and_report(setup, monkeypatch, capsys):
     assert "At move 5 you played castles kingside. The engine preferred pawn to d4." in said
     assert "You tried one illegal move, at move 1." in said
     assert "You asked for the position once, at move 2." in said
+    assert "That was position request 1 of 3." not in said
+    assert "  That was position request 1 of 3." in out
     assert "Your rating is 600." in said             # loss at level 2 (1000) -> 600
     assert "Your blindfold performance rating is" not in said
     assert "  Your blindfold performance rating is 600." in out
@@ -1017,3 +1019,28 @@ def test_show_board_at_review_question_skips_review_and_opens_board(setup, monke
     assert "Sorry, I didn't catch that" not in said
     assert "Did you break any of your honesty rules" not in said   # review skipped
     assert len(opened) == 1 and opened[0] is not None
+
+
+def test_position_request_count_is_printed_not_spoken(setup, capsys):
+    from different_engine.moves import describe_position
+
+    speaker, script, tmp_path = setup
+    s = dict(config.DEFAULTS, colour="white", level=2, position_limit=1)
+    script(["position", "position", "resign", "yes", ""])
+    game.play(game.Interface(speaker), s, "/fake/stockfish")
+    said = "\n".join(speaker.said)
+    out = capsys.readouterr().out
+    # Welcome still names the limit; the position itself is still spoken.
+    assert "You're White, level 2, one position request." in said
+    assert describe_position(chess.Board()) in said
+    # The count is on screen only.
+    assert "That was position request 1 of 1." not in said
+    assert "  That was position request 1 of 1." in out
+    # Refusal is spoken, but without reciting the number; the full line is printed.
+    assert "Sorry, you've used all your position requests for this game." in said
+    assert "I'm sorry, you have used all 1 of your position requests" not in said
+    assert "Try to rebuild the position in your mind" not in said
+    assert ("  I'm sorry, you have used all 1 of your position requests for this game. "
+            "Try to rebuild the position in your mind, then tell me your move.") in out
+    (row,) = read_log(tmp_path)
+    assert int(row["Position requests"]) == 1

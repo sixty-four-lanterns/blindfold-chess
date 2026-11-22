@@ -57,9 +57,6 @@ finish() {
     exit "${1:-1}"
 }
 
-echo
-echo "  The Different Engine"
-echo
 
 if ! command -v python3 >/dev/null 2>&1; then
     echo "Python 3 isn't installed on this computer."
