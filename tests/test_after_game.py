@@ -547,9 +547,9 @@ def test_status_line_after_moves_has_no_board_or_eval(setup, capsys):
     game.play(game.Interface(speaker), s, "/fake/stockfish")
     out = capsys.readouterr().out
     assert ("Move 1 | You: White | Level 3 | Position requests left: 3 | "
-            "Blindfold rating: no rating yet | Milestones 0/22") in out
+            "Blindfold rating: no rating yet | Milestones 0/23") in out
     assert ("Move 2 | You: White | Level 3 | Position requests left: 2 | "
-            "Blindfold rating: no rating yet | Milestones 0/22") in out
+            "Blindfold rating: no rating yet | Milestones 0/23") in out
     assert "rnbqkbnr" not in out.lower()
     assert "fen" not in out.lower()
     assert "eval" not in out.lower()
@@ -563,17 +563,17 @@ def test_format_status_with_and_without_rating(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "MILESTONES_FILE", str(tmp_path / "milestones.json"))
     line = game.format_status(board, chess.WHITE, 2, 3, 0, games=[])
     assert line == ("Move 1 | You: White | Level 2 | Position requests left: 3 | "
-                    "Blindfold rating: no rating yet | Milestones 0/22")
+                    "Blindfold rating: no rating yet | Milestones 0/23")
     games = [{"opponent": "x", "rating": 1200, "result": 1.0}]
     board.push_san("e4")
     line = game.format_status(board, chess.BLACK, 4, -1, 0, games=games)
     assert line == ("Move 1 | You: Black | Level 4 | Position requests left: unlimited | "
-                    "Blindfold rating: 1600 (1 game) | Milestones 0/22")
-    line = game.format_status(board, chess.WHITE, 2, 3, 0, games=[], milestones_count=(9, 22))
-    assert line.endswith("| Milestones 9/22")
+                    "Blindfold rating: 1600 (1 game) | Milestones 0/23")
+    line = game.format_status(board, chess.WHITE, 2, 3, 0, games=[], milestones_count=(9, 23))
+    assert line.endswith("| Milestones 9/23")
     assert "Take-backs" not in line
     assert "eval" not in line.lower() and "board" not in line.lower()
-    with_tb = game.format_status(board, chess.WHITE, 2, 3, 0, games=[], milestones_count=(9, 22), takebacks=2)
+    with_tb = game.format_status(board, chess.WHITE, 2, 3, 0, games=[], milestones_count=(9, 23), takebacks=2)
     assert with_tb.endswith("| Take-backs: 2")
     assert with_tb.startswith("Move 1 | You: White | Level 2 |")
 
@@ -620,7 +620,7 @@ def test_finish_announces_checkmate_milestones(setup):
     assert "New milestone: first checkmate." in said
     assert "New milestone: first win." in said
     assert "New milestone: a completed game." in said
-    assert "You've earned" in said and "of 22" in said
+    assert "You've earned" in said and "of 23" in said
 
 
 def test_drill_and_reset_refused_after_first_move(setup):

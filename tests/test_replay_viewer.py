@@ -78,7 +78,7 @@ def test_between_games_shows_the_last_game(setup, monkeypatch, capsys):
     speaker, script, tmp_path = setup
     opened = []
 
-    def fake_opener(replay, white_at_bottom, engine_path, games_dir):
+    def fake_opener(replay, white_at_bottom, engine_path, games_dir, review=False):
         opened.append((replay, white_at_bottom, engine_path))
     monkeypatch.setattr(rv, "open_viewer", fake_opener)
     monkeypatch.setattr(rv.show_board, "__defaults__", (None, None, None, fake_opener))
@@ -310,12 +310,12 @@ def test_board_launch_option_opens_viewer_silently(monkeypatch, tmp_path):
     monkeypatch.setattr(entry, "ensure_stockfish", lambda path: "/fake/stockfish")
     calls = []
 
-    def fake_show(ui, last, engine_path=None, games_dir=None):
-        calls.append((last, engine_path, games_dir, ui.speaker.backend))
+    def fake_show(ui, last, engine_path=None, games_dir=None, review=False):
+        calls.append((last, engine_path, games_dir, ui.speaker.backend, review))
         return "window"
 
     monkeypatch.setattr(replay_viewer, "show_board", fake_show)
     monkeypatch.setattr(entry, "VoiceInput", lambda *a, **k: (_ for _ in ()).throw(AssertionError("no microphone")))
     monkeypatch.setattr(entry, "play", lambda *a, **k: (_ for _ in ()).throw(AssertionError("no game")))
     assert entry.main(["--board"]) == 0
-    assert calls == [(None, "/fake/stockfish", str(tmp_path), None)]
+    assert calls == [(None, "/fake/stockfish", str(tmp_path), None, True)]

@@ -26,7 +26,6 @@ import queue
 import threading
 
 import chess
-from .board_editor import set_window_icon
 import chess.pgn
 
 SECONDS_PER_POSITION = 0.25
@@ -280,7 +279,8 @@ def print_text_board(ui, replay, white_at_bottom=True):
 # The window
 # ---------------------------------------------------------------------------
 
-def open_viewer(replay, white_at_bottom=True, engine_path=None, games_dir=None, snapshot=None):
+def open_viewer(replay, white_at_bottom=True, engine_path=None, games_dir=None, snapshot=None,
+                review=False):
     """Open the viewer and wait until it is closed.  Raises if there is no window system.
 
     `snapshot` is for testing: a function called with the root window once it
@@ -289,9 +289,9 @@ def open_viewer(replay, white_at_bottom=True, engine_path=None, games_dir=None, 
     import tkinter as tk
     from tkinter import filedialog, messagebox
     from .board_editor import BoardView, SQUARE
+    from .window_icon import create_root
 
-    root = tk.Tk()
-    set_window_icon(root)
+    root = create_root(review=review)
     root.resizable(False, False)
     state = {"replay": replay, "ply": replay.length, "game_no": 0}
 
@@ -497,11 +497,13 @@ def open_viewer(replay, white_at_bottom=True, engine_path=None, games_dir=None, 
     root.mainloop()
 
 
-def show_board(ui, last_game=None, engine_path=None, games_dir=None, opener=open_viewer):
+def show_board(ui, last_game=None, engine_path=None, games_dir=None, opener=open_viewer,
+               *, review=False):
     """'Show board' between games: the last game, the latest saved one, or an empty start.
 
     Blocks until the window is closed.  Falls back to a text board if no window
-    can be opened.  Returns 'window' or 'text'.
+    can be opened.  Returns 'window' or 'text'.  Pass review=True for the green
+    knight icon used when the board is opened with --board.
     """
     if last_game:
         replay = Replay.from_board(last_game["board"], last_game.get("headers"))
@@ -520,7 +522,8 @@ def show_board(ui, last_game=None, engine_path=None, games_dir=None, opener=open
     try:
         if opener is open_viewer:
             import tkinter  # noqa: F401  (checked first, so nothing misleading is said)
-        opener(replay, white_at_bottom=white_at_bottom, engine_path=engine_path, games_dir=games_dir)
+        opener(replay, white_at_bottom=white_at_bottom, engine_path=engine_path,
+               games_dir=games_dir, review=review)
         return "window"
     except Exception:            # no tkinter, or no screen (for example over SSH)
         print_text_board(ui, replay, white_at_bottom)

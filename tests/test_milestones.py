@@ -56,13 +56,14 @@ def write_pgn(tmp_path, name, moves, headers=None):
     return rel, board
 
 
-def test_milestone_count_is_twenty_two():
-    assert milestones.TOTAL == 22
-    assert len(milestones.MILESTONES) == 22
-    assert len({m[0] for m in milestones.MILESTONES}) == 22
+def test_milestone_count_is_twenty_three():
+    assert milestones.TOTAL == 23
+    assert len(milestones.MILESTONES) == 23
+    assert len({m[0] for m in milestones.MILESTONES}) == 23
     groups = [m[1] for m in milestones.MILESTONES]
     assert groups.count("Foundations") == 3
-    assert groups.count("First games") == 5
+    assert groups.count("First games") == 6
+    assert milestones.MILESTONES[3][0] == "move_12"
     assert groups.count("Holding the board") == 6
     assert groups.count("Mastery") == 8
 
@@ -153,6 +154,7 @@ def test_move_20_and_forty_move_from_pgn(store):
     rel, _ = write_pgn(store, "short.pgn", short_moves)
     short = row(**{"PGN file": rel, "Position requests": "0"})
     earned = milestones.detect(rows=[short], drills=[])
+    assert "move_12" not in earned
     assert "move_20_no_position" not in earned
     assert "forty_move_game" not in earned
 
@@ -175,6 +177,7 @@ def test_move_20_and_forty_move_from_pgn(store):
     assert milestones.move_count(row(**{"PGN file": rel40})) >= 40
     long_row = row(**{"PGN file": rel40, "Position requests": "0", "Position request moves": ""})
     earned = milestones.detect(rows=[long_row], drills=[])
+    assert "move_12" in earned
     assert "forty_move_game" in earned
     assert "move_20_no_position" in earned
 
@@ -197,8 +200,59 @@ def test_move_20_and_forty_move_from_pgn(store):
     # No PGN: cannot detect move-count milestones
     no_pgn = row(**{"PGN file": "", "Position requests": "0"})
     earned = milestones.detect(rows=[no_pgn], drills=[])
+    assert "move_12" not in earned
     assert "move_20_no_position" not in earned
     assert "forty_move_game" not in earned
+
+
+def _full_moves(n_full):
+    """A legal sequence that reaches n_full full moves (same count as move_count)."""
+    board = chess.Board()
+    made = []
+    opening = ["e4", "e5", "Nf3", "Nc6", "Bb5", "a6", "Ba4", "Nf6", "O-O", "Be7",
+               "Re1", "b5", "Bb3", "d6", "c3", "O-O", "h3", "Nb8", "d4", "Nbd7"]
+    for san in opening:
+        if (len(board.move_stack) + 1) // 2 >= n_full:
+            break
+        board.push_san(san)
+        made.append(san)
+    while (len(board.move_stack) + 1) // 2 < n_full:
+        move = next(iter(board.legal_moves))
+        made.append(board.san(move))
+        board.push(move)
+    return made
+
+
+def test_move_12_from_pgn_and_existing_log(store):
+    rel11, _ = write_pgn(store, "eleven.pgn", _full_moves(11))
+    eleven = row(Result="0", **{"How it ended": "Player resigned", "PGN file": rel11})
+    assert milestones.move_count(eleven) == 11
+    earned = milestones.detect(rows=[eleven], drills=[])
+    assert "move_12" not in earned
+    assert "forty_move_game" not in earned
+
+    # White's 12th move is enough: same full-move convention as the 40-move milestone
+    made12 = _full_moves(12)
+    rel12, _ = write_pgn(store, "twelve.pgn", made12)
+    assert milestones.move_count(row(**{"PGN file": rel12})) == 12
+    twelve = row(Result="0", **{"How it ended": "Player resigned", "PGN file": rel12})
+    earned = milestones.detect(rows=[twelve], drills=[])
+    assert "move_12" in earned
+    assert "forty_move_game" not in earned
+
+    # An unrated row still counts if passed in, same as forty_move_game
+    unrated = row(Result="unrated", **{"How it ended": "Player resigned", "PGN file": rel12})
+    assert "move_12" in milestones.detect(rows=[unrated], drills=[])
+
+    # Recompute from existing rating-log rows (past games count)
+    ratings.append_game(config.RATING_LOG, {
+        "Date": "2026-11-01", "Opponent": "Stockfish level 2", "Opponent rating": 1000,
+        "Result": "0", "How it ended": "Checkmate", "PGN file": rel12,
+    })
+    new, achieved = milestones.recompute(today=__import__("datetime").date(2026, 11, 22))
+    assert "move_12" in new
+    assert achieved["move_12"] == "2026-11-22"
+    assert milestones.announcement_lines(new, achieved)[0] == "New milestone: reaching move 12."
 
 
 def test_reconstruction_100(store):
@@ -304,27 +358,27 @@ def test_hand_added_rows_count(store):
 def test_progress_lines_and_bars():
     lines = milestones.progress_lines(achieved={})
     assert lines[0] == "Foundations [---] 0/3"
-    assert lines[1] == "First games [-----] 0/5"
+    assert lines[1] == "First games [------] 0/6"
     assert lines[2] == "Holding the board [------] 0/6"
     assert lines[3] == "Mastery [--------] 0/8"
-    assert "You've earned 0 of 22 milestones." in lines
-    assert lines[-1].startswith("Next up: Score 20 out of 20 on the square-colour drill.")
+    assert "You've earned 0 of 23 milestones." in lines
+    assert lines[-1].startswith("Next up: Get a perfect drill.")
     # Next 2–3 are the first unearned ones
-    assert "Score 20 out of 20 in under 60 seconds." in lines[-1]
-    assert "Score 20 out of 20 in under 40 seconds." in lines[-1]
+    assert "Get a perfect drill in under 60 seconds." in lines[-1]
+    assert "Get a perfect drill in under 40 seconds." in lines[-1]
 
     some = {"perfect_drill": "2026-11-01", "perfect_drill_60": "2026-11-02",
             "perfect_drill_90": "2026-11-03", "complete_game": "2026-11-04",
             "first_win": "2026-11-05"}
     lines = milestones.progress_lines(achieved=some)
     assert lines[0] == "Foundations [###] 3/3"
-    assert lines[1] == "First games [##---] 2/5"
-    assert "You've earned 5 of 22 milestones." in lines
-    assert "Next up: Reach move 20 without asking for the position." in lines[-1]
+    assert lines[1] == "First games [##----] 2/6"
+    assert "You've earned 5 of 23 milestones." in lines
+    assert "Next up: Reach move 12 in a game." in lines[-1]
 
     all_ids = {m[0]: "2026-11-19" for m in milestones.MILESTONES}
     lines = milestones.progress_lines(achieved=all_ids)
-    assert "You've earned 22 of 22 milestones." in lines
+    assert "You've earned 23 of 23 milestones." in lines
     assert "You've earned every milestone. Well done." in lines
 
 
@@ -333,7 +387,7 @@ def test_announcement_lines():
     lines = milestones.announcement_lines(["first_checkmate", "first_win"], achieved)
     assert lines[0] == "New milestone: first checkmate."
     assert lines[1] == "New milestone: first win."
-    assert lines[2] == "You've earned 2 of 22."
+    assert lines[2] == "You've earned 2 of 23."
     assert milestones.announcement_lines([], achieved) == []
 
 
@@ -381,12 +435,12 @@ def test_reset_rating_keeps_earned_milestones(store):
 def test_status_line_includes_milestones_not_eval(store):
     milestones.save({"first_win": "2026-11-19", "complete_game": "2026-11-19"})
     line = format_status(chess.Board(), chess.WHITE, 2, 3, 0, games=[])
-    assert line.endswith("| Milestones 2/22")
+    assert line.endswith("| Milestones 2/23")
     assert "Blindfold rating: no rating yet" in line
     assert "eval" not in line.lower()
     assert "fen" not in line.lower()
     earned, total = milestones.counts()
-    assert (earned, total) == (2, 22)
+    assert (earned, total) == (2, 23)
 
 
 class Speaker:
@@ -409,8 +463,8 @@ def test_update_and_announce(store):
         UI(), rows=[], drills=drills, today=__import__("datetime").date(2026, 11, 19)
     )
     said = "\n".join(speaker.said)
-    assert "New milestone: a 20/20 square drill." in said
-    assert "New milestone: a 20/20 square drill in under 60 seconds." in said
-    assert "New milestone: a 20/20 square drill in under 40 seconds." in said
-    assert "You've earned 3 of 22." in said
+    assert "New milestone: a perfect drill." in said
+    assert "New milestone: a perfect drill in under 60 seconds." in said
+    assert "New milestone: a perfect drill in under 40 seconds." in said
+    assert "You've earned 3 of 23." in said
     assert set(new) == {"perfect_drill", "perfect_drill_90", "perfect_drill_60"}

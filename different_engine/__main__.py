@@ -25,6 +25,7 @@ import chess
 
 from . import settings as config, ratings
 from .downloads import ensure_stockfish, ensure_vosk_model, SetupError
+from .window_icon import claim_windows_app_id
 from .game import Interface, Stop, choose_settings, play, between_games, reset_rating, show_progress, run_square_drill
 from .moves import parse, describe_move
 from .speech import Speaker, VoiceInput, list_microphones
@@ -65,7 +66,8 @@ def open_board_only(s, engine_path=None):
             engine_path = None
     print("  Opening the board on your latest saved game. Use Load PGN... for any other game.")
     replay_viewer.show_board(Interface(Speaker(enabled=False), None), None,
-                             engine_path=engine_path, games_dir=config.GAMES_DIR)
+                             engine_path=engine_path, games_dir=config.GAMES_DIR,
+                             review=True)
     return 0
 
 
@@ -91,6 +93,7 @@ def main(argv=None):
     p.add_argument("--board", "--review-board", action="store_true",
                    help="open the board on your latest saved game (or load a PGN) without playing, then stop")
     args = p.parse_args(argv)
+    claim_windows_app_id()
 
     print("\n  THE DIFFERENT ENGINE\n  A blindfold chess partner, after Charles Babbage\n")
 

@@ -687,6 +687,7 @@ def play(ui, s, engine_path, setup=False, quick=None):
         milestones.recompute()
 
         opening = f"You're {colour.capitalize()}, level {game_level}, {limit_words(limit)}."
+        print("  The game is about to begin.")              # on screen only
         if board.turn == player:
             opening += " Your move."
         ui.say(opening)

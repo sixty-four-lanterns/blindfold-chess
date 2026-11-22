@@ -154,7 +154,7 @@ Speak as you would to a person: name the piece and the square, and say "takes" f
 - If your words could mean two different moves, or no legal move, it says so and asks again. It never guesses. Treat it as a free drill: picture the move on your mental board before you repeat it.
 - When you clearly name a move that isn't legal (a piece and a square, or notation), it quietly notes the move number and what you said, for the after-game report. Those are usually slips of the mental board: a piece that wasn't there, a blocked path, or a king left in check. Mishearings, half-heard moves and moves that could mean two things are never counted against you.
 - Every five moves (at moves 6, 11, 16 and so on) it shows "This would be a good moment for a checkpoint" on screen (it isn't spoken), as a reminder to run through the position in your mind. It never reads the position for you. To switch the reminder off, change `"checkpoint_reminders"` to `false` in `settings.json`.
-- After each move, a short **status line** is printed in the terminal, for example: `Move 12 | You: White | Level 3 | Position requests left: 2 | Blindfold rating: 1233 (14 games) | Milestones 9/22`. If you have taken a move back in this game, it also shows `Take-backs: N`. It never shows the board, the moves, or an evaluation.
+- After each move, a short **status line** is printed in the terminal, for example: `Move 12 | You: White | Level 3 | Position requests left: 2 | Blindfold rating: 1233 (14 games) | Milestones 9/23`. If you have taken a move back in this game, it also shows `Take-backs: N`. It never shows the board, the moves, or an evaluation.
 - During the game it behaves like a sporting opponent and nothing more: no hints, no evaluations, no warnings about loose pieces. Those wait until the game is over, and only if you ask for a review.
 
 ### Things you can ask for
@@ -184,7 +184,7 @@ When the game ends (checkmate, stalemate, a draw, or resignation):
 
 1. It **saves the game as a PGN file** in the `games` folder and says **"Game saved in your games folder."** The full path is printed on the screen, but not read aloud. (It doesn't show the game on screen yet, because that would give away the final position.)
 2. It adds a line to your **rating log** and says **"Your rating is 1233."** (or whatever the figure is; if you have no rated games yet, **"You have no rating yet."**). The rest of the report — how the figure was worked out, the guide when you have fewer than 20 games, any suggestion to move down a level, and the two cautions — is printed on the screen, not spoken.
-3. It then says: **"Say review for the after-game review, or press Enter to carry on."** If you press Enter, say no, or skip, that is the end of it. If you have just earned any milestones, it tells you, for example: "New milestone: first checkmate. You've earned 9 of 22." You can also say **show board** (or another between-games command such as **square drill** or **rating**) at this question: it skips the review and does that straight away. It then says **"Enter command."** The screen shows the choices: say **yes** for another game or **no** to finish, or say **show board**, **square drill**, **milestones**, **rating**, **reset rating**, **level** 1 to 8, or **help**. If you said **"lost thread"** during the game, that move has already been noted in the file.
+3. It then says: **"Say review for the after-game review, or press Enter to carry on."** If you press Enter, say no, or skip, that is the end of it. If you have just earned any milestones, it tells you, for example: "New milestone: first checkmate. You've earned 9 of 23." You can also say **show board** (or another between-games command such as **square drill** or **rating**) at this question: it skips the review and does that straight away. It then says **"Enter command."** The screen shows the choices: say **yes** for another game or **no** to finish, or say **show board**, **square drill**, **milestones**, **rating**, **reset rating**, **level** 1 to 8, or **help**. If you said **"lost thread"** during the game, that move has already been noted in the file.
 
 If you say **review**, it then:
 
@@ -253,20 +253,20 @@ At the end it tells you your score out of 20 and your thinking time in seconds, 
 
 The program keeps a short list of milestones, worked out automatically from your rating log and your drill log. They are grouped in four levels: **Foundations**, **First games**, **Holding the board** and **Mastery**. You don't have to tick anything yourself. A file called `milestones.json` stores the date each one was first earned. If you add games or drill results to the logs by hand, they are counted too.
 
-After each game, and after each square-colour drill, any newly earned milestone is announced, for example: "New milestone: first checkmate. You've earned 9 of 22."
+After each game, and after each square-colour drill, any newly earned milestone is announced, for example: "New milestone: first checkmate. You've earned 9 of 23."
 
 Say **milestones** (or **progress**, or start the program with `--progress`), to hear (and see) a text progress bar for each level, and the next two or three milestones to aim for:
 
 ```
 Foundations [###] 3/3
-First games [##---] 2/5
-Holding the board [-----] 0/6
-Mastery [-----] 0/8
-You've earned 5 of 22 milestones.
-Next up: Reach move 20 without asking for the position. Play a game with no illegal move attempts. Deliver a checkmate in a blindfold game.
+First games [##----] 2/6
+Holding the board [------] 0/6
+Mastery [--------] 0/8
+You've earned 5 of 23 milestones.
+Next up: Reach move 12 in a game. Reach move 20 without asking for the position. Play a game with no illegal move attempts.
 ```
 
-The status line during a game also shows `Milestones 9/22`. It never shows the board or an evaluation.
+The status line during a game also shows `Milestones 9/23`. It never shows the board or an evaluation.
 
 If you reset your rating, milestones you have already earned are kept. A later check of the logs will only add new ones; it never takes one away.
 

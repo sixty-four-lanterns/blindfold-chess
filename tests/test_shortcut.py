@@ -29,6 +29,8 @@ def test_linux_desktop_shortcut_created_once(tmp_path):
     assert f'Exec=bash "{ROOT}/start-linux.sh"' in text
     assert f"Path={ROOT}" in text
     assert dest.stat().st_mode & stat.S_IXUSR
+    assert "Icon=" in text and text.split("Icon=")[1].splitlines()[0].endswith("/different_engine/icon.png")
+    assert "StartupWMClass=DifferentEngine" in text
     assert "I've put a shortcut called The Different Engine on your Desktop." in r.stdout
 
     # A second run must not overwrite or reprint the message.
@@ -72,7 +74,9 @@ def test_icon_files_present_and_linked():
     with open(os.path.join(root, "Start-Windows.bat"), encoding="utf-8") as f:
         assert "IconLocation" in f.read()
     with open(os.path.join(root, "start-linux.sh"), encoding="utf-8") as f:
-        assert "Icon=$app/different_engine/icon.png" in f.read()
+        starter = f.read()
+        assert "Icon=$app/different_engine/icon.png" in starter
+        assert "StartupWMClass=DifferentEngine" in starter
 
 
 def test_review_games_launcher_opens_board_only():
@@ -88,3 +92,27 @@ def test_review_shortcut_has_its_own_green_icon():
     assert (ROOT / "different_engine" / "icon_review.ico").is_file()
     assert (ROOT / "different_engine" / "icon_review.png").is_file()
     assert "icon_review.ico" in WINDOWS.read_text()
+
+
+def test_linux_shortcut_gains_window_class_if_missing(tmp_path):
+    desktop = tmp_path / "Desktop"
+    desktop.mkdir()
+    dest = desktop / "The Different Engine.desktop"
+    dest.write_text("\n".join([
+        "[Desktop Entry]",
+        "Type=Application",
+        "Name=The Different Engine",
+        f'Exec=bash "{ROOT}/start-linux.sh"',
+        "",
+    ]))
+    env = os.environ.copy()
+    env["HOME"] = str(tmp_path)
+    env["DE_DESKTOP_DIR"] = str(desktop)
+    env["DE_CREATE_SHORTCUT_ONLY"] = "1"
+    r = subprocess.run(["bash", str(SCRIPT)], cwd=str(ROOT), env=env,
+                       text=True, capture_output=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+    text = dest.read_text()
+    assert "StartupWMClass=DifferentEngine" in text
+    assert f"Icon={ROOT}/different_engine/icon.png" in text
+    assert "I've put a shortcut" not in r.stdout

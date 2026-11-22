@@ -20,6 +20,14 @@ create_desktop_shortcut() {
     [ -d "$desktop" ] || return 0
     dest="$desktop/The Different Engine.desktop"
     if [ -e "$dest" ]; then
+        # An older shortcut may be missing the window class or icon; add them
+        # quietly so the taskbar can show the knight rather than the Python logo.
+        if ! grep -q '^StartupWMClass=' "$dest" 2>/dev/null; then
+            printf '\nStartupWMClass=DifferentEngine\n' >> "$dest"
+        fi
+        if ! grep -q '^Icon=' "$dest" 2>/dev/null; then
+            printf 'Icon=%s/different_engine/icon.png\n' "$app" >> "$dest"
+        fi
         return 0
     fi
     cat > "$dest" <<EOF
@@ -34,6 +42,7 @@ Terminal=true
 StartupNotify=true
 Categories=Game;BoardGame;
 Icon=$app/different_engine/icon.png
+StartupWMClass=DifferentEngine
 EOF
     chmod +x "$dest"
     if command -v gio >/dev/null 2>&1; then

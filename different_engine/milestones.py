@@ -25,14 +25,17 @@ MILESTONES = [
     # and display text are now 60 and 40 seconds, scaled from 90 and 60
     # when the drill was shortened from 30 squares to 20.
     ("perfect_drill", "Foundations",
-     "a 20/20 square drill",
-     "Score 20 out of 20 on the square-colour drill"),
+     "a perfect drill",
+     "Get a perfect drill"),
     ("perfect_drill_90", "Foundations",
-     "a 20/20 square drill in under 60 seconds",
-     "Score 20 out of 20 in under 60 seconds"),
+     "a perfect drill in under 60 seconds",
+     "Get a perfect drill in under 60 seconds"),
     ("perfect_drill_60", "Foundations",
-     "a 20/20 square drill in under 40 seconds",
-     "Score 20 out of 20 in under 40 seconds"),
+     "a perfect drill in under 40 seconds",
+     "Get a perfect drill in under 40 seconds"),
+    ("move_12", "First games",
+     "reaching move 12",
+     "Reach move 12 in a game"),
     ("complete_game", "First games",
      "a completed game",
      "Finish a game without resigning"),
@@ -44,7 +47,7 @@ MILESTONES = [
      "Play a game with no illegal move attempts"),
     ("first_checkmate", "First games",
      "first checkmate",
-     "Deliver a checkmate in a blindfold game"),
+     "Deliver a checkmate"),
     ("first_win", "First games",
      "first win",
      "Win a game"),
@@ -388,6 +391,8 @@ def detect(rows=None, drills=None, pgns=None):
             earned.add("reconstruction_100")
 
         moves = move_count(row, pgn)
+        if moves is not None and moves >= 12:
+            earned.add("move_12")
         if moves is not None and moves >= 40:
             earned.add("forty_move_game")
         if moves is not None and moves >= 20:

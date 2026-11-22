@@ -12,7 +12,6 @@ set-up board.
 """
 
 import chess
-from .board_editor import set_window_icon
 
 from .moves import join_words, number_word
 
@@ -103,13 +102,13 @@ def reconstruct_position(true_board, white_at_bottom=True, on_score=None):
     """
     import tkinter as tk
     from .board_editor import BoardView
+    from .window_icon import create_root
 
     truth = true_board.copy(stack=False)
     guess = chess.Board(None)             # an empty board: nothing is given away
     state = {"score": None, "truth_shown": False}
 
-    root = tk.Tk()
-    set_window_icon(root)
+    root = create_root()
     root.title("The Different Engine \u2014 reconstruct the final position")
     root.resizable(False, False)
 

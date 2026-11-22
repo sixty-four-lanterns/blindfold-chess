@@ -5,26 +5,7 @@ The board and its palette of pieces (BoardView) are also used by the
 reconstruction test at the end of a game (reconstruction.py).
 """
 
-import os
-
 import chess
-
-ICON_PNG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icon.png")
-ICON_ICO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icon.ico")
-
-
-def set_window_icon(root):
-    """Give a tkinter window the Different Engine icon.  Never fails."""
-    try:
-        import tkinter as tk
-        if os.name == "nt" and os.path.exists(ICON_ICO):
-            root.iconbitmap(default=ICON_ICO)
-        elif os.path.exists(ICON_PNG):
-            image = tk.PhotoImage(file=ICON_PNG)
-            root.iconphoto(True, image)
-            root._de_icon = image          # keep a reference so it is not discarded
-    except Exception:
-        pass
 
 WHITE_GLYPHS = {chess.KING: "\u2654", chess.QUEEN: "\u2655", chess.ROOK: "\u2656",
                 chess.BISHOP: "\u2657", chess.KNIGHT: "\u2658", chess.PAWN: "\u2659"}
@@ -261,8 +242,9 @@ def edit_position(start_fen=None, white_at_bottom=True):
     board = chess.Board(start_fen) if start_fen else chess.Board()
     state = {"result": None, "keep_rights": True}
 
-    root = tk.Tk()
-    set_window_icon(root)
+    from .window_icon import create_root
+
+    root = create_root()
     root.title("The Different Engine - set up a position")
     root.resizable(False, False)
 
