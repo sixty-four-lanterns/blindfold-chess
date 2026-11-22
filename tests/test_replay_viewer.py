@@ -296,3 +296,20 @@ def test_text_fallback_when_no_window(capsys):
     assert any("as text" in s for s in speaker.said)
     out = capsys.readouterr().out
     assert "  5  . . . . p . . ." in out and "1... e5" in out
+
+
+def test_board_launch_option_opens_viewer_silently(monkeypatch, tmp_path):
+    from different_engine import __main__ as entry, replay_viewer, settings as config
+    monkeypatch.setattr(config, "GAMES_DIR", str(tmp_path))
+    monkeypatch.setattr(entry, "ensure_stockfish", lambda path: "/fake/stockfish")
+    calls = []
+
+    def fake_show(ui, last, engine_path=None, games_dir=None):
+        calls.append((last, engine_path, games_dir, ui.speaker.backend))
+        return "window"
+
+    monkeypatch.setattr(replay_viewer, "show_board", fake_show)
+    monkeypatch.setattr(entry, "VoiceInput", lambda *a, **k: (_ for _ in ()).throw(AssertionError("no microphone")))
+    monkeypatch.setattr(entry, "play", lambda *a, **k: (_ for _ in ()).throw(AssertionError("no game")))
+    assert entry.main(["--board"]) == 0
+    assert calls == [(None, "/fake/stockfish", str(tmp_path), None)]

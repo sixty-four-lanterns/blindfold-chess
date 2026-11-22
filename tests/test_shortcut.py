@@ -73,3 +73,18 @@ def test_icon_files_present_and_linked():
         assert "IconLocation" in f.read()
     with open(os.path.join(root, "start-linux.sh"), encoding="utf-8") as f:
         assert "Icon=$app/different_engine/icon.png" in f.read()
+
+
+def test_review_games_launcher_opens_board_only():
+    review = ROOT / "Review-Games-Windows.bat"
+    assert review.is_file()
+    assert "--board" in review.read_text()
+    text = WINDOWS.read_text()
+    assert "Different Engine - Review games.lnk" in text
+    assert "Review-Games-Windows.bat" in text
+
+
+def test_review_shortcut_has_its_own_green_icon():
+    assert (ROOT / "different_engine" / "icon_review.ico").is_file()
+    assert (ROOT / "different_engine" / "icon_review.png").is_file()
+    assert "icon_review.ico" in WINDOWS.read_text()

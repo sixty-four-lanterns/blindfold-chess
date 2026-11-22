@@ -198,6 +198,8 @@ If you say **review**, it then:
 
 Between games, say **show board** (or **show the board**, or just **board**) and a window opens with the game you have just finished, at its final position, the right way round for the colour you played. The two squares of the last move are shaded light grey.
 
+To review a game straight away without playing, start the program with `--board`. On Windows, double-click the **Different Engine - Review games** shortcut, which `Start-Windows.bat` puts on your Desktop. On Linux or a Mac, run `./start-linux.sh --board` or `./start-mac.command --board`. The board opens on your latest saved game and nothing is spoken.
+
 - **Start**, **Back**, **Forward** and **End** step through the game; so do the **Left** and **Right** arrow keys, with **Home** and **End** to jump to either end. You can also click any move in the list.
 - The current move is shown as, for example, **12. Nf3** (or **12... Nf6** for a Black move), with "Move 23 of 41" underneath.
 - **Turn board round** turns the board (and the analysis bar) round.
@@ -287,6 +289,7 @@ You can add an option when you start the program:
 | `--drill` | Runs the square-colour drill, then starts a game as usual. |
 | `--progress` | Shows your milestones and what to aim for next, then stops. |
 | `--reset-rating` | Asks you to confirm, then archives the rating log and starts a fresh one. A game then starts as usual. |
+| `--board` | Opens the board on your latest saved game, with the analysis bar, without starting a game or speaking. Use **Load PGN…** for any other game. Close the window and the program stops. On Windows, the **Different Engine - Review games** shortcut on your Desktop (or `Review-Games-Windows.bat`) does this. |
 
 How to add an option:
 

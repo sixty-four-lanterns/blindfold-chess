@@ -63,6 +63,10 @@ if errorlevel 10 (
   echo.
 )
 
+rem --- A second shortcut that just opens the board for reviewing games, created once ---
+if exist "%~dp0Review-Games-Windows.bat" powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$desktop = [Environment]::GetFolderPath('Desktop'); if (-not $desktop -or -not (Test-Path $desktop)) { exit 0 }; $link = Join-Path $desktop 'Different Engine - Review games.lnk'; if (Test-Path $link) { exit 0 }; $s = (New-Object -ComObject WScript.Shell).CreateShortcut($link); $s.TargetPath = '%~dp0Review-Games-Windows.bat'; $s.WorkingDirectory = '%~dp0'; $s.WindowStyle = 7; $s.Description = 'Open the board to review a game'; $icon = '%~dp0different_engine\icon_review.ico'; if (Test-Path $icon) { $s.IconLocation = $icon + ',0' }; $s.Save()"
+
 rem The Stockfish engine and the speech model are downloaded by the program itself.
 ".venv\Scripts\python.exe" -m different_engine %*
 if errorlevel 1 pause

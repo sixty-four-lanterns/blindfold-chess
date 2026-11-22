@@ -14,6 +14,7 @@ Options (add them after the launcher name, or after "python -m different_engine"
     --drill         run the square-colour drill, then start a game as usual
     --progress      show your milestones and what to aim for next, then stop
     --reset-rating  archive the rating log and start a fresh one (asks first)
+    --board         open the board on your latest saved game (or load a PGN), silently, then stop
 """
 
 import argparse
@@ -53,6 +54,21 @@ def test_microphone(speaker, listener):
             speaker.say("I didn't catch a move. " + ("Please try again." if heard else "Is the microphone switched on?"))
 
 
+def open_board_only(s, engine_path=None):
+    """Open the game viewer straight away: no microphone, no game, nothing spoken."""
+    from . import replay_viewer
+    if engine_path is None:
+        try:
+            engine_path = ensure_stockfish(s["stockfish_path"])
+        except Exception as exc:          # the board still works, just without the analysis bar
+            print(f"  (No analysis bar: {exc})")
+            engine_path = None
+    print("  Opening the board on your latest saved game. Use Load PGN... for any other game.")
+    replay_viewer.show_board(Interface(Speaker(enabled=False), None), None,
+                             engine_path=engine_path, games_dir=config.GAMES_DIR)
+    return 0
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(prog="different_engine", description="The Different Engine: a voice-driven "
                                 "blindfold chess partner.")
@@ -72,6 +88,8 @@ def main(argv=None):
                    help="show your milestones and what to aim for next, then stop")
     p.add_argument("--reset-rating", action="store_true",
                    help="archive the rating log and start a fresh one (asks first)")
+    p.add_argument("--board", "--review-board", action="store_true",
+                   help="open the board on your latest saved game (or load a PGN) without playing, then stop")
     args = p.parse_args(argv)
 
     print("\n  THE DIFFERENT ENGINE\n  A blindfold chess partner, after Charles Babbage\n")
@@ -88,6 +106,9 @@ def main(argv=None):
         for line in ratings.report(games, window[-1]["opponent"] if window else None):
             print(line)
         return 0
+
+    if args.board:
+        return open_board_only(config.load())
 
     first_time = not os.path.exists(config.SETTINGS_FILE)
     s = config.load()
