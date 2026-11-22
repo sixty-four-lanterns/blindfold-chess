@@ -91,10 +91,11 @@ Before your first move you can:
 
 - Say **settings** to change your colour, the engine's level, your position-request limit, and whether to start from the usual opening position or a custom one.
 - Say **play black**, **play white**, **switch colours** or **random** to change sides. The game starts again from the beginning, and your choice is remembered.
-- Say **square drill** to run the spoken square-colour test (see [Square-colour drill](#square-colour-drill)).
+- Say **square drill** (or just **drill**) to run the spoken square-colour test (see [Square-colour drill](#square-colour-drill)).
 - Say **milestones** (or **progress**) to hear how many milestones you have earned, and what to aim for next.
 - Say **rating** (or **my rating**, or **what's my rating**) to hear your current blindfold rating and how many games it is based on.
 - Say **reset rating** to start your rating again from scratch. It asks you to confirm first, and keeps your old games in a dated file.
+- Say **show board** to look through your last game on a board, move by move with an analysis bar, or to load a PGN file (see [Show board](#show-board-going-through-the-game)).
 - Say **level 4** (or any level from 1 to 8, or **set level 4**, or **change level to 4**) to change the engine's level. Spoken numbers such as "level four" work too. Before your first move it applies at once; after you have moved, it is saved for the next game.
 
 To go through the full settings questions at launch, start the program with `--setup` (see [Extra options](#extra-options)).
@@ -169,9 +170,10 @@ Speak as you would to a person: name the piece and the square, and say "takes" f
 | **settings** | Before your first move, opens the full settings dialogue (colour, level, position limit, and usual or custom start). After you have moved, it tells you it is too late for this game. |
 | **level 1** to **level 8** / **set level N** / **change level to N** | Sets the engine's level (spoken numbers such as "four" are accepted too). Before your first move, or between games, it applies at once and it says "Engine level 4, about 1400." After you have moved, this game stays at its current level and it says "Level 4 from your next game." A number outside 1 to 8 gets a short reminder of the range. It does not use a position request. |
 | **play white** / **play black** / **switch colours** / **random** | Before your first move, changes sides, starts the game again from the start, and remembers your choice. |
-| **square drill** / **colour drill** / **square colours** | Before your first move, or between games, runs the spoken square-colour drill. After you have moved, it tells you it is too late for this game. |
+| **square drill** / **drill** / **colour drill** / **square colours** | Before your first move, or between games, runs the spoken square-colour drill. After you have moved, it tells you it is too late for this game. |
 | **milestones** / **progress** / **how am I doing** | Tells you how many milestones you have earned, with a short progress bar for each level, and the next two or three to aim for. **Milestones** is the most reliable word to say; "progress" is also accepted, together with "achievements" and a few common mishearings of "progress". You can say this during a game too. |
 | **reset rating** | Before your first move, or between games, starts your rating again from scratch, after asking you to confirm. Your old games are kept in a dated file. Milestones you have already earned are kept. |
+| **show board** / **show the board** / **board** | Between games (or before your first move), opens the last game on a board so you can step through it move by move with an analysis bar, or load a PGN file. See [Show board](#show-board-going-through-the-game). Once you have moved, it says "The board is available between games." |
 | **draw** | Offers a draw. The engine accepts if it doesn't think it is better (and not in the first 20 moves). |
 | **resign** | Resigns the game (it checks first). |
 | **rating** / **my rating** / **what's my rating** | Tells you your current blindfold rating and how many games it is based on, for example "Your blindfold rating is 1233 from 14 games." You can say this during a game (it does not use a position request) or between games. It is not the same as **reset rating**, which starts your rating again. |
@@ -182,7 +184,7 @@ When the game ends (checkmate, stalemate, a draw, or resignation):
 
 1. It **saves the game as a PGN file** in the `games` folder and says **"Game saved in your games folder."** The full path is printed on the screen, but not read aloud. (It doesn't show the game on screen yet, because that would give away the final position.)
 2. It adds a line to your **rating log** and tells you your **blindfold performance rating** (see below).
-3. It then says: **"Say review for the after-game review, or press Enter to carry on."** If you press Enter, say no, or skip, that is the end of it. If you have just earned any milestones, it tells you, for example: "New milestone: first checkmate. You've earned 9 of 22." It then asks whether you would like another game. You can also say **square drill**, **milestones**, **rating** or **reset rating** at that point. If you said **"lost thread"** during the game, that move has already been noted in the file.
+3. It then says: **"Say review for the after-game review, or press Enter to carry on."** If you press Enter, say no, or skip, that is the end of it. If you have just earned any milestones, it tells you, for example: "New milestone: first checkmate. You've earned 9 of 22." It then says **"Enter command."** The screen shows the choices: say **yes** for another game or **no** to finish, or say **show board**, **square drill**, **milestones**, **rating**, **reset rating**, **level** 1 to 8, or **help**. If you said **"lost thread"** during the game, that move has already been noted in the file.
 
 If you say **review**, it then:
 
@@ -191,6 +193,19 @@ If you say **review**, it then:
 6. Offers to **look through the game for the two or three biggest slips**. The chess engine, at full strength, spends a fraction of a second on each of your moves (a Raspberry Pi manages a ten-move game in a few seconds). For each slip it tells you the move number, what you played and what the engine preferred, roughly how much it cost, in plain words, and asks whether it was a **chess mistake** or a **visualisation mistake** (say "chess", "visualisation", "not sure", or "skip"). It also works out two plain figures for your moves: the **average centipawn loss** (a centipawn is a hundredth of a pawn; lower is better, and a single move counts for at most ten pawns, so one missed mate can't swamp the average) and **how many of your moves matched the engine's first choice**. These are not turned into a made-up "accuracy rating"; in this program the accuracy score is the reconstruction test.
 7. **Shows the whole game on screen**, with everything above in the PGN headers, and gives a short **summary**: where you first lost the thread, how many illegal moves you tried and when, how many times you asked for the position and when, your reconstruction score, and your move-quality figures if the game was looked through. Any chess program can open a PGN file. Go through the game with the analysis turned on, as described in Chapter 12.
 8. Offers to **read all the moves of the game aloud**. Say yes or no.
+
+### Show board: going through the game
+
+Between games, say **show board** (or **show the board**, or just **board**) and a window opens with the game you have just finished, at its final position, the right way round for the colour you played. The two squares of the last move are shaded light grey.
+
+- **Start**, **Back**, **Forward** and **End** step through the game; so do the **Left** and **Right** arrow keys, with **Home** and **End** to jump to either end. You can also click any move in the list.
+- The current move is shown as, for example, **12. Nf3** (or **12... Nf6** for a Black move), with "Move 23 of 41" underneath.
+- **Turn board round** turns the board (and the analysis bar) round.
+- **Load PGN…** opens any game from a PGN file, your own or one from a book or a database, for the same move-by-move analysis. It reads the first game in the file, starts from its set-up position if it has one (a FEN header), and shows the White and Black names and the result.
+- **The analysis bar**, beside the board, shows who is better in each position as you step through: the white part is White's share and the dark grey part Black's, with White's end at White's side of the board. Underneath is the evaluation in pawns (**+0.8** means White is about eight-tenths of a pawn better; **-1.5** means Black is a pawn and a half better; **M3** means White can mate in three, **-M2** that Black can mate in two) and the engine's **best move** in that position. Stockfish spends about a quarter of a second on each position in the background, starting with the one you are looking at and then going through the rest of the game, so the buttons never wait for it; "Thinking..." shows until the figure is ready. Each position is only looked at once, so going back is instant. If Stockfish can't be started, the bar is left out and everything else works as usual.
+- **Close** (or the window's close button) shuts the window and the analysis, and you're back at **"Enter command."**
+
+If you haven't finished a game yet in this session, it opens the most recent game in your `games` folder instead, or the usual starting position if there isn't one, so **Load PGN…** can still be used. The board is never shown during a game: if you say **show board** after your first move, it says "The board is available between games." It needs tkinter, like the set-up board; if no window can be opened, the final position is printed on the screen as text instead (capital letters are White).
 
 ## Your blindfold rating (the strength gauge)
 
@@ -222,13 +237,13 @@ To **start your rating again**, say **reset rating** before your first move or b
 
 ## Square-colour drill
 
-This is a spoken version of the Colour flash drill in Chapter 3 of the book, and it uses the same target: thirty squares in thirty seconds. Say **square drill** (or **colour drill**, or **square colours**) before your first move or between games, or start the program with `--drill`.
+This is a spoken version of the Colour flash drill in Chapter 3 of the book, and it uses the same target: thirty squares in thirty seconds. Say **square drill** (or just **drill**, **colour drill** or **square colours**) before your first move or between games, or start the program with `--drill`.
 
 It names thirty random squares, using the spelling alphabet so the file letter is hard to mishear, for example "delta five". The square is also printed on the screen. After each one, say **light** or **dark** (or type it, in text mode). **White** and **black** are accepted too. A short click means you were correct; if you were wrong it says so, for example "No, light."
 
 Only your thinking time is counted: the clock starts when it has finished naming the square, and stops when you start to answer. The time it takes to read the square, to play the click or to say a correction, and any delay while it works out what you said, are not included. If it has to ask again because an answer wasn't recognised, the thinking time of each attempt is added, but not the time spent on the re-prompt.
 
-At the end it tells you your score out of 30 and your thinking time in seconds, and whether that was your best so far. Each attempt is added to a file called `drill_log.csv` in the Different Engine folder (date, score, total, seconds), which opens in any spreadsheet. A perfect 30 out of 30, a perfect score in under a minute, and a perfect score in under 30 seconds (the book's Colour flash target) each earn a milestone, now measured by thinking time. Older log rows from when the drill was twenty squares, or from when the clock included the computer's speech, are kept, but they do not count towards the 30-square milestones, and those older times will only look harder.
+At the end it tells you your score out of 30 and your thinking time in seconds, and whether that was your best so far. Each attempt is added to a file called `drill_log.csv` in the Different Engine folder (date, score, total, seconds), which opens in any spreadsheet. A perfect 30 out of 30, a perfect score in under 90 seconds, and a perfect score in under a minute each earn a milestone. The book's Colour flash target of thirty squares in thirty seconds is still the one to aim for in the end; the milestones are steps on the way, now measured by thinking time. Older log rows from when the drill was twenty squares, or from when the clock included the computer's speech, are kept, but they do not count towards the 30-square milestones, and those older times will only look harder.
 
 ---
 
@@ -300,6 +315,7 @@ Everything stays inside the Different Engine folder:
 - **"I couldn't find a microphone."** Plug the microphone in before starting, check it is not muted, and on a Mac allow Terminal to use the microphone (System Settings > Privacy & Security > Microphone). If you have several microphones, use `--test-mic` to see their numbers and `--mic` to choose one.
 - **I can't hear it speak.** Check the volume and that the right speaker is chosen. On a Raspberry Pi or Linux, the voice comes from a program called espeak-ng, which the starter installs; you can also type `sudo apt install espeak-ng`.
 - **The custom-position board doesn't open.** It then asks you to paste a FEN instead. On Linux, `sudo apt install python3-tk` adds the board window.
+- **The show-board window doesn't open.** It needs a screen and tkinter too; without them it prints the final position as text instead. If the analysis bar is missing, Stockfish couldn't be started.
 - **The reconstruction board doesn't open.** It needs a screen and tkinter, like the set-up board. Over SSH, or without `python3-tk` on Linux, it skips the test and carries on; the game is saved either way.
 - **To start again from scratch**, delete the `.venv` folder and run the starter again. Your games and rating log are kept.
 
@@ -313,11 +329,11 @@ Speech recognition runs offline on your own machine. Your voice and your games s
 - [python-chess](https://python-chess.readthedocs.io/) for the rules of the game.
 - [Stockfish](https://stockfishchess.org/), the open-source chess engine.
 - Your computer's own voice: Windows' built-in voice (through pyttsx3), espeak-ng on Linux, and the Mac's built-in voice.
-- [sounddevice](https://python-sounddevice.readthedocs.io/) for the microphone, and tkinter (part of Python) for the set-up and reconstruction boards.
+- [sounddevice](https://python-sounddevice.readthedocs.io/) for the microphone, and tkinter (part of Python) for the set-up, reconstruction and show-board windows.
 
 ### For the technically minded
 
-The program is in the `different_engine` folder: `moves.py` (understanding spoken moves and describing moves and positions), `speech.py` (listening and speaking), `engine.py` (Stockfish levels), `ratings.py` (the rating log, formula and rating reset), `drill.py` (the square-colour drill), `milestones.py` (milestones and the progress bar), `board_editor.py` (the set-up board, and the board drawing it shares with the reconstruction test), `reconstruction.py` (the reconstruction test and its scoring), `review.py` (the slip review and the after-game summary), `game.py` (the loop) and `downloads.py` (first-run downloads). To run the tests: `.venv/bin/python -m pip install pytest`, then `.venv/bin/python -m pytest` (on Windows, `.venv\Scripts\python`).
+The program is in the `different_engine` folder: `moves.py` (understanding spoken moves and describing moves and positions), `speech.py` (listening and speaking), `engine.py` (Stockfish levels), `ratings.py` (the rating log, formula and rating reset), `drill.py` (the square-colour drill), `milestones.py` (milestones and the progress bar), `board_editor.py` (the set-up board, and the board drawing it shares with the reconstruction test), `reconstruction.py` (the reconstruction test and its scoring), `review.py` (the slip review and the after-game summary), `replay_viewer.py` (the show-board window, its analysis bar and the text fallback), `game.py` (the loop) and `downloads.py` (first-run downloads). To run the tests: `.venv/bin/python -m pip install pytest`, then `.venv/bin/python -m pytest` (on Windows, `.venv\Scripts\python`).
 
 ## Licence
 

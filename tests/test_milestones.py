@@ -70,15 +70,15 @@ def test_milestone_count_is_twenty_two():
 def test_perfect_drill_detectors(store):
     drills = [
         {"date": "2026-11-01", "score": 29, "total": 30, "seconds": 20},
-        {"date": "2026-11-02", "score": 30, "total": 30, "seconds": 70},
+        {"date": "2026-11-02", "score": 30, "total": 30, "seconds": 100},
     ]
     assert milestones.detect(rows=[], drills=drills) == {"perfect_drill"}
-    drills.append({"date": "2026-11-03", "score": 30, "total": 30, "seconds": 59})
-    assert milestones.detect(rows=[], drills=drills) >= {"perfect_drill", "perfect_drill_60"}
-    assert "perfect_drill_30" not in milestones.detect(rows=[], drills=drills)
-    drills.append({"date": "2026-11-04", "score": 30, "total": 30, "seconds": 29})
+    drills.append({"date": "2026-11-03", "score": 30, "total": 30, "seconds": 89})
+    assert milestones.detect(rows=[], drills=drills) >= {"perfect_drill", "perfect_drill_90"}
+    assert "perfect_drill_60" not in milestones.detect(rows=[], drills=drills)
+    drills.append({"date": "2026-11-04", "score": 30, "total": 30, "seconds": 59})
     earned = milestones.detect(rows=[], drills=drills)
-    assert {"perfect_drill", "perfect_drill_60", "perfect_drill_30"} <= earned
+    assert {"perfect_drill", "perfect_drill_90", "perfect_drill_60"} <= earned
     # A short perfect drill of fewer than 30 squares does not count
     assert "perfect_drill" not in milestones.detect(
         rows=[], drills=[{"date": "x", "score": 10, "total": 10, "seconds": 10}]
@@ -93,16 +93,16 @@ def test_perfect_drill_detectors(store):
             {"date": "y", "score": 19, "total": 30, "seconds": 20},
         ]
     ) == set()
+    # Exactly 90 seconds is not "under 90"
+    only_90 = milestones.detect(
+        rows=[], drills=[{"date": "x", "score": 30, "total": 30, "seconds": 90}]
+    )
+    assert only_90 == {"perfect_drill"}
     # Exactly 60 seconds is not "under 60"
     only_60 = milestones.detect(
         rows=[], drills=[{"date": "x", "score": 30, "total": 30, "seconds": 60}]
     )
-    assert only_60 == {"perfect_drill"}
-    # Exactly 30 seconds is not "under 30"
-    only_30 = milestones.detect(
-        rows=[], drills=[{"date": "x", "score": 30, "total": 30, "seconds": 30}]
-    )
-    assert only_30 == {"perfect_drill", "perfect_drill_60"}
+    assert only_60 == {"perfect_drill", "perfect_drill_90"}
 
 
 def test_complete_game_and_not_resigned(store):
@@ -302,11 +302,11 @@ def test_progress_lines_and_bars():
     assert "You've earned 0 of 22 milestones." in lines
     assert lines[-1].startswith("Next up: Score 30 out of 30 on the square-colour drill.")
     # Next 2–3 are the first unearned ones
+    assert "Score 30 out of 30 in under 90 seconds." in lines[-1]
     assert "Score 30 out of 30 in under 60 seconds." in lines[-1]
-    assert "Score 30 out of 30 in under 30 seconds." in lines[-1]
 
     some = {"perfect_drill": "2026-11-01", "perfect_drill_60": "2026-11-02",
-            "perfect_drill_30": "2026-11-03", "complete_game": "2026-11-04",
+            "perfect_drill_90": "2026-11-03", "complete_game": "2026-11-04",
             "first_win": "2026-11-05"}
     lines = milestones.progress_lines(achieved=some)
     assert lines[0] == "Foundations [###] 3/3"
@@ -332,14 +332,14 @@ def test_announcement_lines():
 def test_recompute_only_adds_and_keeps_dates(store):
     drills = [{"date": "2026-11-01", "score": 30, "total": 30, "seconds": 25}]
     new, achieved = milestones.recompute(rows=[], drills=drills, today=__import__("datetime").date(2026, 11, 10))
-    assert set(new) == {"perfect_drill", "perfect_drill_60", "perfect_drill_30"}
+    assert set(new) == {"perfect_drill", "perfect_drill_90", "perfect_drill_60"}
     assert achieved["perfect_drill"] == "2026-11-10"
     # A later recompute with no drills would, if it were allowed to remove, drop them.
     # It must keep them, with the original dates.
     new2, achieved2 = milestones.recompute(rows=[], drills=[], today=__import__("datetime").date(2026, 11, 19))
     assert new2 == []
     assert achieved2["perfect_drill"] == "2026-11-10"
-    assert set(achieved2) >= {"perfect_drill", "perfect_drill_60", "perfect_drill_30"}
+    assert set(achieved2) >= {"perfect_drill", "perfect_drill_90", "perfect_drill_60"}
     saved = json.loads((store / "milestones.json").read_text())
     assert saved["achieved"]["perfect_drill"] == "2026-11-10"
 
@@ -402,7 +402,7 @@ def test_update_and_announce(store):
     )
     said = "\n".join(speaker.said)
     assert "New milestone: a 30/30 square drill." in said
+    assert "New milestone: a 30/30 square drill in under 90 seconds." in said
     assert "New milestone: a 30/30 square drill in under a minute." in said
-    assert "New milestone: a 30/30 square drill in under 30 seconds." in said
     assert "You've earned 3 of 22." in said
-    assert set(new) == {"perfect_drill", "perfect_drill_60", "perfect_drill_30"}
+    assert set(new) == {"perfect_drill", "perfect_drill_90", "perfect_drill_60"}

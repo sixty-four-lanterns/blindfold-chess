@@ -23,12 +23,12 @@ MILESTONES = [
     ("perfect_drill", "Foundations",
      "a 30/30 square drill",
      "Score 30 out of 30 on the square-colour drill"),
+    ("perfect_drill_90", "Foundations",
+     "a 30/30 square drill in under 90 seconds",
+     "Score 30 out of 30 in under 90 seconds"),
     ("perfect_drill_60", "Foundations",
      "a 30/30 square drill in under a minute",
      "Score 30 out of 30 in under 60 seconds"),
-    ("perfect_drill_30", "Foundations",
-     "a 30/30 square drill in under 30 seconds",
-     "Score 30 out of 30 in under 30 seconds"),
     ("complete_game", "First games",
      "a completed game",
      "Finish a game without resigning"),
@@ -345,10 +345,10 @@ def detect(rows=None, drills=None, pgns=None):
 
     if perfect_drills(drills):
         earned.add("perfect_drill")
+    if perfect_drills(drills, max_seconds=90):
+        earned.add("perfect_drill_90")
     if perfect_drills(drills, max_seconds=60):
         earned.add("perfect_drill_60")
-    if perfect_drills(drills, max_seconds=30):
-        earned.add("perfect_drill_30")
 
     completed = 0
     no_thread_streak = 0

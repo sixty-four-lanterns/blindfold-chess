@@ -1,0 +1,23 @@
+# Python's compiled files and test caches (made automatically when the program runs)
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# The program's private copy of the Python parts
+.venv/
+venv/
+
+# Downloaded on first run
+/models/
+/engine/
+
+# Your personal files: games, logs, settings and milestones
+/games/
+/*.csv
+/*.json
+*.log
+
+# System clutter
+.DS_Store
+Thumbs.db
+desktop.ini

@@ -65,7 +65,7 @@ HELP_PHRASE = re.compile(r"^(?:help|commands|what can i say)\b")
 
 RESET_RATING_PHRASE = re.compile(r"\breset\s+(?:my\s+|the\s+)?rating\b")
 DRILL_PHRASE = re.compile(
-    r"\b(square\s+drill|colour\s+drill|color\s+drill|square\s+colours|square\s+colors)\b"
+    r"\b(square\s+drill|colour\s+drill|color\s+drill|square\s+colours|square\s+colors|drill)\b"
 )
 # "take" on its own means a capture, so these phrases must be recognised first.
 TAKEBACK_PHRASE = re.compile(
@@ -79,6 +79,11 @@ LAST_MOVE_PHRASE = re.compile(
         what\s+did\s+you\s+play
     )\b""",
     re.VERBOSE,
+)
+# Between games only: look at the last game on a board.  "position" on its
+# own stays the in-game position request, so "show position" is not used here.
+SHOW_BOARD_PHRASE = re.compile(
+    r"^(?:(?:please\s+)?(?:show|see|view)\s+(?:me\s+)?(?:the\s+)?board(?:\s+please)?|board)$"
 )
 # "level" on its own is not a command; a number from 1 to 8 must follow.
 LEVEL_COMMAND = re.compile(
@@ -252,6 +257,7 @@ COMMAND_PHRASES = (
     "rating", "my rating", "what is my rating",
     "last move", "last moves", "what was the last move", "say last move",
     "what did you play",
+    "show board", "show the board", "show me the board",
 )
 
 
@@ -310,6 +316,8 @@ def _command_for_phrase(phrase):
         return "rating"
     if "last move" in phrase or phrase == "what did you play":
         return "last move"
+    if "board" in phrase:
+        return "show board"
     return phrase
 
 
@@ -329,6 +337,8 @@ def special_command(text, fuzzy=True):
         return None
     if is_help_command(t):
         return "help"
+    if SHOW_BOARD_PHRASE.match(t):
+        return "show board"
     if RESET_RATING_PHRASE.search(t):
         return "reset rating"
     if TAKEBACK_PHRASE.search(t):
@@ -627,6 +637,6 @@ def vocabulary():
         "commands", "can", "last", "was", "did", "you", "move", "moves",
         "milestones", "milestone", "achievements", "achievement", "how", "am",
         "doing", "process", "congress", "report", "progres", "prog", "gress",
-        "ress", "pro", "i",
+        "ress", "pro", "i", "show", "board", "see", "view", "me",
     } | set(NUMBER_WORDS) - {"won", "too", "for", "ate", "nought"}
     return sorted(words)

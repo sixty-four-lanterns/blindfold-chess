@@ -242,6 +242,7 @@ def session_command(text):
         "rating": "rating",
         "help": "help",
         "level": "level",
+        "show board": "show-board",
     }
     if special in session:
         return session[special]
@@ -282,17 +283,32 @@ def run_square_drill(ui):
     milestones.update_and_announce(ui)
 
 
+def remember_game(ui, board, player, engine_path=None, headers=None):
+    """Keep a copy of the finished game (with its moves) for 'show board'."""
+    ui.last_game = {"board": board.copy(), "player": player,
+                    "engine_path": engine_path, "headers": dict(headers or {})}
+
+
+def show_last_board(ui, engine_path=None):
+    """Open the game viewer on the last game of this session (between games only)."""
+    from . import replay_viewer
+    last = getattr(ui, "last_game", None)
+    engine_path = engine_path or (last or {}).get("engine_path") or getattr(ui, "engine_path", None)
+    return replay_viewer.show_board(ui, last, engine_path=engine_path, games_dir=config.GAMES_DIR)
+
+
 def between_games(ui, s=None):
     """True if the player would like another game.
 
-    Also accepts square drill, progress, rating, reset rating and a level
-    change between games.
+    Also accepts square drill, progress, rating, reset rating, a level
+    change and 'show board' (look through the last game, or load a PGN)
+    between games.
     """
     def understand(text):
         cmd = session_command(text)
         if cmd == "level":
             return ("level", text)
-        if cmd in ("drill", "progress", "reset-rating", "rating", "help"):
+        if cmd in ("drill", "progress", "reset-rating", "rating", "help", "show-board"):
             return cmd
         words = (text or "").split()
         if is_yes(words):
@@ -303,8 +319,10 @@ def between_games(ui, s=None):
 
     while True:
         ui.help_context, ui.help_requests_left = "between", None
-        choice = ui.ask("Would you like another game? You can also say square drill, milestones, "
-                        "rating, or reset rating.", understand, "Yes, no, or a command?")
+        # Shown on screen only; just "Enter command." is spoken.
+        print("  Another game? Say yes or no. Or say: show board, square drill, milestones, "
+              "rating, reset rating, level 1 to 8, or help.")
+        choice = ui.ask("Enter command.", understand, "Yes, no, or a command?")
         if choice == "play":
             return True
         if choice == "quit":
@@ -315,6 +333,8 @@ def between_games(ui, s=None):
             if s is None:
                 s = config.load()
             apply_level_command(ui, s, choice[1])
+        elif choice == "show-board":
+            show_last_board(ui)
         elif choice == "drill":
             run_square_drill(ui)
         elif choice == "progress":
@@ -380,8 +400,9 @@ def format_help(context=None, requests_left=None):
             "  settings                       Colour, level, requests and start",
             "  level 1 to 8                   Change the engine's level",
             "  play white / play black / switch colours / random",
-            "  square drill                   The 30-square colour test",
+            "  square drill / drill           The 30-square colour test",
             "  reset rating                   Start your rating again",
+            "  show board                     See the last game and step through it, or load a PGN",
         ]),
         ("after", "After a game", [
             "  review                         Or press Enter to skip",
@@ -733,6 +754,13 @@ def play(ui, s, engine_path, setup=False, quick=None):
                         print_status(board, player, game_level, limit, used,
                                      takebacks=log["takebacks"])
                         continue
+                    if cmd == "show-board":
+                        if player_has_moved:
+                            ui.say("The board is available between games. Your move.")
+                            continue
+                        show_last_board(ui, engine_path)
+                        print_status(board, player, game_level, limit, used, takebacks=log["takebacks"])
+                        continue
                     if cmd in ("drill", "reset-rating"):
                         if player_has_moved:
                             ui.say("You can only do that before your first move, or between games. Your move.")
@@ -1056,6 +1084,7 @@ def finish(ui, s, board, start_fen, player, result, termination, used, log=None,
         path = os.path.join(config.GAMES_DIR, f"{base}_{n}.pgn")
         n += 1
     pgn_text = save_pgn(path, board, headers)
+    remember_game(ui, board, player, engine_path, headers)
     ui.say("Game saved in your games folder.")
     print(f"  Full location of the game: {path}")
 

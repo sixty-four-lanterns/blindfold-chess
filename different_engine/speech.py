@@ -177,6 +177,8 @@ def grammar_phrases():
         "take back", "undo", "go back", "take that back",
         "last move", "last moves", "what was the last move",
         "say last move", "what did you play",
+        "show board", "show the board", "show me the board", "board",
+        "see the board", "view board",
         "my rating", "what is my rating",
         "progress", "milestones", "my milestones", "how am i doing",
         "achievements", "progress report", "process", "congress",
@@ -184,6 +186,12 @@ def grammar_phrases():
         "light", "dark", "light square", "dark square",
         "lite", "lights", "darke", "dark one", "light one",
         "chess", "visualisation", "visualization", "not sure", "skip",
+        # Session commands said before the first move or between games
+        "drill", "square drill", "colour drill", "color drill",
+        "reset rating", "reset my rating",
+        "settings", "review",
+        "play white", "play black", "play as white", "play as black",
+        "switch colours", "switch colors", "switch sides",
     }
     for word, value in NUMBER_WORDS.items():
         if word not in ("won", "too", "for", "ate", "nought"):

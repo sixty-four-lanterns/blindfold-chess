@@ -333,3 +333,17 @@ def test_parse_level_command_accepts_words_and_digits():
     assert special_command("level 4") == "level"
     assert special_command("level") is None
     assert parse(START, "e4").kind == "move"
+
+
+def test_drill_alone_means_square_drill():
+    from different_engine.moves import special_command
+    assert special_command("drill") == "square drill"
+    assert special_command("square drill") == "square drill"
+
+
+def test_session_commands_are_in_speech_grammar():
+    from different_engine.speech import grammar_phrases
+    g = set(grammar_phrases())
+    for phrase in ("drill", "square drill", "reset rating", "settings", "review",
+                   "play white", "play black", "switch colours", "show board"):
+        assert phrase in g, phrase
