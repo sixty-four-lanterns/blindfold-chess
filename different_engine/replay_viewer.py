@@ -26,6 +26,7 @@ import queue
 import threading
 
 import chess
+from .board_editor import set_window_icon
 import chess.pgn
 
 SECONDS_PER_POSITION = 0.25
@@ -290,6 +291,7 @@ def open_viewer(replay, white_at_bottom=True, engine_path=None, games_dir=None, 
     from .board_editor import BoardView, SQUARE
 
     root = tk.Tk()
+    set_window_icon(root)
     root.resizable(False, False)
     state = {"replay": replay, "ply": replay.length, "game_no": 0}
 

@@ -53,9 +53,9 @@ if errorlevel 1 goto pip_failed
 echo installed> ".venv\installed.txt"
 
 :run
-rem --- Desktop shortcut, created once --------------------------------------
+rem --- Desktop shortcut, created once (an older one gets the icon added) --------------------------------------
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$desktop = [Environment]::GetFolderPath('Desktop'); if (-not $desktop -or -not (Test-Path $desktop)) { exit 0 }; $link = Join-Path $desktop 'The Different Engine.lnk'; if (Test-Path $link) { exit 0 }; $s = (New-Object -ComObject WScript.Shell).CreateShortcut($link); $s.TargetPath = '%~f0'; $s.WorkingDirectory = '%~dp0'; $s.WindowStyle = 1; $s.Description = 'The Different Engine'; $s.Save(); exit 10"
+  "$desktop = [Environment]::GetFolderPath('Desktop'); if (-not $desktop -or -not (Test-Path $desktop)) { exit 0 }; $link = Join-Path $desktop 'The Different Engine.lnk'; $icon = '%~dp0different_engine\icon.ico'; $new = -not (Test-Path $link); $s = (New-Object -ComObject WScript.Shell).CreateShortcut($link); if (-not $new -and $s.IconLocation -like '*icon.ico*') { exit 0 }; $s.TargetPath = '%~f0'; $s.WorkingDirectory = '%~dp0'; $s.WindowStyle = 1; $s.Description = 'The Different Engine'; if (Test-Path $icon) { $s.IconLocation = $icon + ',0' }; $s.Save(); if ($new) { exit 10 } else { exit 0 }"
 if errorlevel 10 (
   echo.
   echo   I've put a shortcut called The Different Engine on your Desktop.

@@ -58,3 +58,18 @@ def test_windows_starter_creates_shortcut_with_powershell():
     assert "The Different Engine.lnk" in text
     assert r"%~f0" in text
     assert "I've put a shortcut called The Different Engine on your Desktop." in text
+
+
+def test_icon_files_present_and_linked():
+    import os
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    ico = os.path.join(root, "different_engine", "icon.ico")
+    png = os.path.join(root, "different_engine", "icon.png")
+    with open(ico, "rb") as f:
+        assert f.read(4) == b"\x00\x00\x01\x00"          # Windows icon header
+    with open(png, "rb") as f:
+        assert f.read(8) == b"\x89PNG\r\n\x1a\n"
+    with open(os.path.join(root, "Start-Windows.bat"), encoding="utf-8") as f:
+        assert "IconLocation" in f.read()
+    with open(os.path.join(root, "start-linux.sh"), encoding="utf-8") as f:
+        assert "Icon=$app/different_engine/icon.png" in f.read()

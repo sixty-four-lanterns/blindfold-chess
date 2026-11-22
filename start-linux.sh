@@ -33,6 +33,7 @@ Path=$app
 Terminal=true
 StartupNotify=true
 Categories=Game;BoardGame;
+Icon=$app/different_engine/icon.png
 EOF
     chmod +x "$dest"
     if command -v gio >/dev/null 2>&1; then

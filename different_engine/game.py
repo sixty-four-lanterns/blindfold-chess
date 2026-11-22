@@ -1105,7 +1105,10 @@ def finish(ui, s, board, start_fen, player, result, termination, used, log=None,
 
     games = ratings.read_games(config.RATING_LOG)
     for line in ratings.report(games, opponent):
-        ui.say(line)
+        if line.startswith("With only"):
+            print("  " + line)      # on screen only: it would be repetitive to hear every game
+        else:
+            ui.say(line)
     print(f"  (Your rating log is in {config.RATING_LOG}; it opens in any spreadsheet.)\n")
 
     # Auto level-up applies only if the player has not already chosen a
