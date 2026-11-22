@@ -175,7 +175,7 @@ Speak as you would to a person: name the piece and the square, and say "takes" f
 | **reset rating** | Before your first move, or between games, starts your rating again from scratch, after asking you to confirm. Your old games are kept in a dated file. Milestones you have already earned are kept. |
 | **show board** / **show the board** / **board** | Between games (or before your first move), opens the last game on a board so you can step through it move by move with an analysis bar, or load a PGN file. See [Show board](#show-board-going-through-the-game). Once you have moved, it says "The board is available between games." |
 | **draw** | Offers a draw. The engine accepts if it doesn't think it is better (and not in the first 20 moves). |
-| **resign** | Resigns the game (it checks first). |
+| **resign** | Resigns the game (it checks first). If you resign within your first five moves, the game is still saved but isn't rated: it goes into the rating log marked "unrated" and doesn't count towards your rating, level-ups or milestones. |
 | **rating** / **my rating** / **what's my rating** | Tells you your current blindfold rating and how many games it is based on, for example "Your blindfold rating is 1233 from 14 games." You can say this during a game (it does not use a position request) or between games. It is not the same as **reset rating**, which starts your rating again. |
 
 ## At the end of the game
@@ -184,7 +184,7 @@ When the game ends (checkmate, stalemate, a draw, or resignation):
 
 1. It **saves the game as a PGN file** in the `games` folder and says **"Game saved in your games folder."** The full path is printed on the screen, but not read aloud. (It doesn't show the game on screen yet, because that would give away the final position.)
 2. It adds a line to your **rating log** and tells you your **blindfold performance rating** (see below).
-3. It then says: **"Say review for the after-game review, or press Enter to carry on."** If you press Enter, say no, or skip, that is the end of it. If you have just earned any milestones, it tells you, for example: "New milestone: first checkmate. You've earned 9 of 22." It then says **"Enter command."** The screen shows the choices: say **yes** for another game or **no** to finish, or say **show board**, **square drill**, **milestones**, **rating**, **reset rating**, **level** 1 to 8, or **help**. If you said **"lost thread"** during the game, that move has already been noted in the file.
+3. It then says: **"Say review for the after-game review, or press Enter to carry on."** If you press Enter, say no, or skip, that is the end of it. If you have just earned any milestones, it tells you, for example: "New milestone: first checkmate. You've earned 9 of 22." You can also say **show board** (or another between-games command such as **square drill** or **rating**) at this question: it skips the review and does that straight away. It then says **"Enter command."** The screen shows the choices: say **yes** for another game or **no** to finish, or say **show board**, **square drill**, **milestones**, **rating**, **reset rating**, **level** 1 to 8, or **help**. If you said **"lost thread"** during the game, that move has already been noted in the file.
 
 If you say **review**, it then:
 

@@ -115,7 +115,7 @@ def read_game_rows(path=None):
     if not os.path.exists(path) or os.path.getsize(path) == 0:
         return []
     with open(path, newline="", encoding="utf-8-sig") as f:
-        return list(csv.DictReader(f))
+        return [r for r in csv.DictReader(f) if (r.get("Result") or "").strip() != "unrated"]
 
 
 def read_drill_rows(path=None):

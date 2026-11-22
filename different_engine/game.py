@@ -322,7 +322,11 @@ def between_games(ui, s=None):
         # Shown on screen only; just "Enter command." is spoken.
         print("  Another game? Say yes or no. Or say: show board, square drill, milestones, "
               "rating, reset rating, level 1 to 8, or help.")
-        choice = ui.ask("Enter command.", understand, "Yes, no, or a command?")
+        pending = getattr(ui, "pending_command", None)   # said at the review question
+        ui.pending_command = None
+        choice = understand(pending) if pending else None
+        if choice is None:
+            choice = ui.ask("Enter command.", understand, "Yes, no, or a command?")
         if choice == "play":
             return True
         if choice == "quit":
@@ -1024,6 +1028,11 @@ def wants_review(ui):
             return True
         if is_no(words):
             return False
+        cmd = session_command(text)
+        if cmd in ("drill", "progress", "reset-rating", "rating", "level", "show-board"):
+            # A between-games command: skip the review and do it straight after.
+            ui.pending_command = text
+            return False
         return None
     ui.help_context, ui.help_requests_left = "after", None
     return ui.ask("Say review for the after-game review, or press Enter to carry on.",
@@ -1044,6 +1053,25 @@ def _apply_review_data(headers, row, reconstruction, looked):
     if looked and looked["slips"]:
         headers["Slips"] = row["Slips"] = slips_text(looked["slips"])
     return quality
+
+
+UNRATED_RESIGN_MOVES = 5
+
+
+def player_moves_made(board, player):
+    """How many moves the player has made in this game (from its start position)."""
+    turn = board.root().turn
+    count = 0
+    for _ in board.move_stack:
+        if turn == player:
+            count += 1
+        turn = not turn
+    return count
+
+
+def is_early_resignation(board, player, termination):
+    """A resignation in the first five moves: saved, but not rated."""
+    return termination == "Player resigned" and player_moves_made(board, player) < UNRATED_RESIGN_MOVES
 
 
 def finish(ui, s, board, start_fen, player, result, termination, used, log=None, engine_path=None,
@@ -1101,9 +1129,17 @@ def finish(ui, s, board, start_fen, player, result, termination, used, log=None,
         "Position request moves": ", ".join(str(n) for n in requests),
         "Takebacks": log.get("takebacks", 0),
     }
+    unrated = is_early_resignation(board, player, termination)
+    if unrated:
+        # Kept in the log for the record, but "unrated" is skipped by the
+        # rating, the level-up check and the milestones.
+        row["Result"] = "unrated"
+        row["Notes"] = f"Resigned in the first {UNRATED_RESIGN_MOVES} moves (scored {score_text}), not rated"
     ratings.append_game(config.RATING_LOG, row)
 
     games = ratings.read_games(config.RATING_LOG)
+    if unrated:
+        ui.say("You resigned within the first five moves, so this game isn't rated.")
     for line in ratings.report(games, opponent):
         if line.startswith("With only") or line == ratings.CAUTIONS:
             print("  " + line)      # on screen only: it would be repetitive to hear every game

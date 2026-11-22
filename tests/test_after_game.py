@@ -428,7 +428,7 @@ def test_play_black_before_first_move_saves_and_restarts(setup, monkeypatch):
     assert saved["colour"] == "black"
     (row,) = read_log(tmp_path)
     assert row["Colour"] == "Black"
-    assert row["Result"] == "0"
+    assert row["Result"] == "unrated"                # resigned in the first five moves
 
 
 def test_switch_colours_and_settings_help_mentioned(setup, monkeypatch, capsys):
@@ -525,6 +525,8 @@ def test_checkpoint_off_when_settings_say_so(setup, capsys):
     ])
     game.play(game.Interface(speaker), s, "/fake/stockfish")
     assert game.CHECKPOINT not in "\n".join(speaker.said)
+    (row,) = read_log(tmp_path)
+    assert row["Result"] == "0"                      # five moves made, so the resignation is rated
     assert game.CHECKPOINT not in capsys.readouterr().out
 
 
@@ -935,3 +937,48 @@ def test_finish_does_not_auto_up_at_level_eight(setup):
     said = "\n".join(speaker.said)
     assert "moved the engine up" not in said
     assert s["level"] == 8
+
+
+def test_resigning_in_first_five_moves_is_saved_but_unrated(setup):
+    speaker, script, tmp_path = setup
+    s = dict(config.DEFAULTS, colour="white", level=2)
+    script(["e4", "Nf3", "resign", "yes", ""])
+    game.play(game.Interface(speaker), s, "/fake/stockfish")
+    said = "\n".join(speaker.said)
+    assert "this game isn't rated" in said
+    assert "Game saved in your games folder." in said
+    (row,) = read_log(tmp_path)
+    assert row["Result"] == "unrated"
+    assert "not rated" in row["Notes"]
+    from different_engine import ratings
+    assert ratings.read_games(config.RATING_LOG) == []
+    from different_engine import milestones
+    assert milestones.read_game_rows() == []
+
+
+def test_player_moves_made_counts_only_the_players_moves():
+    board = chess.Board()
+    for san in ["e4", "e5", "Nf3", "Nc6"]:
+        board.push_san(san)
+    assert game.player_moves_made(board, chess.WHITE) == 2
+    assert game.player_moves_made(board, chess.BLACK) == 2
+    board.push_san("Bb5")
+    assert game.player_moves_made(board, chess.WHITE) == 3
+    assert not game.is_early_resignation(board, chess.WHITE, "Checkmate")
+    assert game.is_early_resignation(board, chess.WHITE, "Player resigned")
+
+
+def test_show_board_at_review_question_skips_review_and_opens_board(setup, monkeypatch):
+    speaker, script, tmp_path = setup
+    opened = []
+    monkeypatch.setattr(game, "show_last_board", lambda ui, engine_path=None: opened.append(ui.last_game))
+    s = dict(config.DEFAULTS, colour="white", level=2)
+    script(["e4", "resign", "yes", "show board", "no"])
+    ui = game.Interface(speaker)
+    game.play(ui, s, "/fake/stockfish")
+    assert opened == []                              # nothing opens until the game is finished with
+    assert game.between_games(ui, s) is False        # board opened, then "no" ends the session
+    said = "\n".join(speaker.said)
+    assert "Sorry, I didn't catch that" not in said
+    assert "Did you break any of your honesty rules" not in said   # review skipped
+    assert len(opened) == 1 and opened[0] is not None

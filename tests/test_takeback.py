@@ -207,7 +207,7 @@ def test_take_back_in_play_recorded_in_log_and_pgn(setup, capsys):
     assert moves[0] == "d4" and "e4" not in moves[:1]
     (row,) = read_log(tmp_path)
     assert row["Takebacks"] == "1"
-    assert row["Result"] == "0"                      # still a rated game
+    assert row["Result"] == "unrated"                # resigned in the first five moves
 
 
 def test_nothing_to_take_back_in_play(setup):
@@ -275,7 +275,7 @@ def test_rating_during_game_does_not_use_a_request_or_block_the_game(setup):
     ])
     game.play(game.Interface(speaker), settings(), "/fake/stockfish")
     said = "\n".join(speaker.said)
-    assert said.count("There are no games in your rating log yet.") == 2
+    assert said.count("There are no games in your rating log yet.") == 3   # the early resignation is unrated
     assert "You can only change that before your first move" not in said
     assert "You can only do that before your first move" not in said
     (row,) = read_log(tmp_path)
