@@ -520,7 +520,6 @@ def show_board(ui, last_game=None, engine_path=None, games_dir=None, opener=open
     try:
         if opener is open_viewer:
             import tkinter  # noqa: F401  (checked first, so nothing misleading is said)
-        ui.say("The board will open in a new window. Close it when you're finished.")
         opener(replay, white_at_bottom=white_at_bottom, engine_path=engine_path, games_dir=games_dir)
         return "window"
     except Exception:            # no tkinter, or no screen (for example over SSH)

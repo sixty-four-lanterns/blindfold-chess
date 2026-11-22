@@ -93,7 +93,9 @@ def test_between_games_shows_the_last_game(setup, monkeypatch, capsys):
     assert white_at_bottom is False                 # the player had Black
     assert engine_path == "/fake/stockfish"
     assert speaker.said.count("Enter command.") == 2
+    assert not any("will open" in t.lower() for t in speaker.said)
     out = capsys.readouterr().out
+    assert "will open in a new window" not in out
     assert ("  Another game? Say yes or no. Or say: show board, square drill, milestones, "
             "rating, reset rating, level 1 to 8, or help.") in out
 
@@ -186,10 +188,12 @@ def test_latest_saved_pgn(tmp_path):
 def test_no_game_yet_opens_latest_saved(tmp_path):
     (tmp_path / "g.pgn").write_text('[White "Engine"]\n[Black "Player"]\n\n1. e4 e5 *\n')
     seen = []
-    rv.show_board(Speaker(), None, games_dir=str(tmp_path),
+    speaker = Speaker()
+    rv.show_board(speaker, None, games_dir=str(tmp_path),
                   opener=lambda r, **k: seen.append((r, k["white_at_bottom"])))
     (replay, white_at_bottom), = seen
     assert replay.length == 2 and white_at_bottom is False
+    assert speaker.said == []
 
 
 # --- the analysis bar ----------------------------------------------------------
@@ -294,7 +298,9 @@ def test_text_fallback_when_no_window(capsys):
     how = rv.show_board(speaker, {"board": played("e4", "e5"), "player": chess.WHITE}, opener=broken)
     assert how == "text"
     assert any("as text" in s for s in speaker.said)
+    assert not any("will open" in s.lower() for s in speaker.said)
     out = capsys.readouterr().out
+    assert "will open in a new window" not in out
     assert "  5  . . . . p . . ." in out and "1... e5" in out
 
 

@@ -88,7 +88,7 @@ def test_pick_squares_are_unique():
     assert len(set(squares)) == 30
     assert all(len(s) == 2 and s[0] in "abcdefgh" and s[1] in "12345678" for s in squares)
     default = drill.pick_squares(rng=random.Random(1))
-    assert len(default) == drill.N_SQUARES == 30
+    assert len(default) == drill.N_SQUARES == 20
 
 
 def test_best_result_prefers_score_then_time():
@@ -196,16 +196,16 @@ class ScriptedUI:
 
 def _half_and_half():
     all_sq = drill.all_squares()
-    lights = [s for s in all_sq if drill.square_colour(s) == "light"][:15]
-    darks = [s for s in all_sq if drill.square_colour(s) == "dark"][:15]
-    assert len(lights) == 15 and len(darks) == 15
+    lights = [s for s in all_sq if drill.square_colour(s) == "light"][:10]
+    darks = [s for s in all_sq if drill.square_colour(s) == "dark"][:10]
+    assert len(lights) == 10 and len(darks) == 10
     return lights + darks
 
 
 def test_run_drill_scores_logs_and_gives_feedback(path, capsys):
     squares = _half_and_half()
     # white is light, so the second half (dark squares) is wrong
-    answers = ["light"] * 15 + ["white"] * 15
+    answers = ["light"] * 10 + ["white"] * 10
     clock = FakeClock()
     clicks = []
 
@@ -224,28 +224,28 @@ def test_run_drill_scores_logs_and_gives_feedback(path, capsys):
         play=play,
     )
     said = "\n".join(ui.said)
-    assert result == {"score": 15, "total": 30, "seconds": 30, "date": "2026-11-19"}
-    assert clicks == ["click"] * 15
+    assert result == {"score": 10, "total": 20, "seconds": 20, "date": "2026-11-19"}
+    assert clicks == ["click"] * 10
     assert "Correct." not in said
-    assert said.count("No, dark.") == 15
+    assert said.count("No, dark.") == 10
     assert "No, light." not in said
-    assert "You scored 15 out of 30." in said
-    assert "Your thinking time was 30 seconds." in said
+    assert "You scored 10 out of 20." in said
+    assert "Your thinking time was 20 seconds." in said
     assert "That's your best so far." in said
-    assert "I'll name thirty squares." in said
+    assert "I'll name twenty squares." in said
     assert "A click means correct." in said
     assert "Only your thinking time is counted." in said
     assert drill.speak_square(squares[0]) in said
-    # Lots of spoken time was added (intro, 30 squares, 15 corrections,
-    # the summary, and 15 clicks of 50 seconds), but none of it is counted.
-    assert clock.t > 100 + 30 + 200
+    # Lots of spoken time was added (intro, 20 squares, 10 corrections,
+    # the summary, and 10 clicks of 50 seconds), but none of it is counted.
+    assert clock.t > 100 + 20 + 200
     out = capsys.readouterr().out
-    assert f"1/30: {squares[0]}" in out
-    assert f"30/30: {squares[-1]}" in out
+    assert f"1/20: {squares[0]}" in out
+    assert f"20/20: {squares[-1]}" in out
     rows = drill.read_results(path)
-    assert rows == [{"date": "2026-11-19", "score": 15, "total": 30, "seconds": 30}]
+    assert rows == [{"date": "2026-11-19", "score": 10, "total": 20, "seconds": 20}]
 
-    ui2 = ScriptedUI(["light"] * 15 + ["dark"] * 15, clock, think=1.0, speak=10.0)
+    ui2 = ScriptedUI(["light"] * 10 + ["dark"] * 10, clock, think=1.0, speak=10.0)
     result2 = drill.run_drill(
         ui2,
         path=path,
@@ -254,30 +254,30 @@ def test_run_drill_scores_logs_and_gives_feedback(path, capsys):
         clock=clock,
         play=lambda: True,
     )
-    assert result2["score"] == 30 and result2["seconds"] == 30
+    assert result2["score"] == 20 and result2["seconds"] == 20
     said = "\n".join(ui2.said)
-    assert "You scored 30 out of 30." in said
-    assert "Your thinking time was 30 seconds." in said
+    assert "You scored 20 out of 20." in said
+    assert "Your thinking time was 20 seconds." in said
     assert "That's your best so far." in said
     rows = drill.read_results(path)
-    assert rows[-1] == {"date": "2026-11-19", "score": 30, "total": 30, "seconds": 30}
+    assert rows[-1] == {"date": "2026-11-19", "score": 20, "total": 20, "seconds": 20}
 
 
 def test_run_drill_says_correct_when_click_cannot_play(path):
     squares = _half_and_half()
     clock = FakeClock()
-    ui = ScriptedUI(["light"] * 15 + ["dark"] * 15, clock, think=0.5, speak=8.0)
+    ui = ScriptedUI(["light"] * 10 + ["dark"] * 10, clock, think=0.5, speak=8.0)
     result = drill.run_drill(
         ui, path=path, rng=FixedRng(squares),
         now=datetime.date(2026, 11, 19), clock=clock,
         play=lambda: False,
     )
     said = "\n".join(ui.said)
-    assert result["score"] == 30
-    assert result["seconds"] == 15  # 30 * 0.5, speech excluded
-    assert said.count("Correct.") == 30
+    assert result["score"] == 20
+    assert result["seconds"] == 10  # 20 * 0.5, speech excluded
+    assert said.count("Correct.") == 20
     assert "No," not in said
-    assert "Your thinking time was 15 seconds." in said
+    assert "Your thinking time was 10 seconds." in said
 
 
 def test_run_drill_includes_reask_thinking_but_not_reprompt_speech(path):

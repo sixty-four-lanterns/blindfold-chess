@@ -20,15 +20,19 @@ from .engine import LEVELS
 
 # id, group, short title (for "New milestone: ..."), longer description (for "Next up")
 MILESTONES = [
+    # perfect_drill_90 and perfect_drill_60 keep their historical ids so
+    # already-earned entries in milestones.json are not lost. The thresholds
+    # and display text are now 60 and 40 seconds, scaled from 90 and 60
+    # when the drill was shortened from 30 squares to 20.
     ("perfect_drill", "Foundations",
-     "a 30/30 square drill",
-     "Score 30 out of 30 on the square-colour drill"),
+     "a 20/20 square drill",
+     "Score 20 out of 20 on the square-colour drill"),
     ("perfect_drill_90", "Foundations",
-     "a 30/30 square drill in under 90 seconds",
-     "Score 30 out of 30 in under 90 seconds"),
+     "a 20/20 square drill in under 60 seconds",
+     "Score 20 out of 20 in under 60 seconds"),
     ("perfect_drill_60", "Foundations",
-     "a 30/30 square drill in under a minute",
-     "Score 30 out of 30 in under 60 seconds"),
+     "a 20/20 square drill in under 40 seconds",
+     "Score 20 out of 20 in under 40 seconds"),
     ("complete_game", "First games",
      "a completed game",
      "Finish a game without resigning"),
@@ -311,14 +315,13 @@ def win_count(rows):
 
 
 def perfect_drills(drills, max_seconds=None):
-    """Perfect drills of at least 30 squares, optionally in under max_seconds.
+    """Perfect drills of at least 20 squares, optionally in under max_seconds.
 
-    Older drill_log rows with a total of 20 (the previous round length) do
-    not count towards these milestones.
+    Older 20-square rows and 30-square rows both count.
     """
     found = []
     for d in drills:
-        if d["total"] < 30 or d["score"] != d["total"]:
+        if d["total"] < 20 or d["score"] != d["total"]:
             continue
         if max_seconds is not None and not (d["seconds"] < max_seconds):
             continue
@@ -345,9 +348,9 @@ def detect(rows=None, drills=None, pgns=None):
 
     if perfect_drills(drills):
         earned.add("perfect_drill")
-    if perfect_drills(drills, max_seconds=90):
-        earned.add("perfect_drill_90")
     if perfect_drills(drills, max_seconds=60):
+        earned.add("perfect_drill_90")
+    if perfect_drills(drills, max_seconds=40):
         earned.add("perfect_drill_60")
 
     completed = 0

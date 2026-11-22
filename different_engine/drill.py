@@ -1,7 +1,8 @@
 """The spoken square-colour drill, matching the Colour flash drill in Chapter 3.
 
-Thirty random squares are named with the spelling alphabet (for example
-"delta five"), matching the Colour flash target in the book. The player
+Twenty random squares are named with the spelling alphabet (for example
+"delta five"). The book's Colour flash target remains thirty squares
+in thirty seconds; this spoken round is shorter. The player
 answers "light" or "dark" ("white" and "black" are accepted too). A
 click marks a correct answer; a wrong one is spoken. Only the player's
 thinking time is counted, and at the end the score and that time are
@@ -22,7 +23,7 @@ import wave
 
 from . import settings as config
 
-N_SQUARES = 30
+N_SQUARES = 20
 COLUMNS = ["Date", "Score", "Total", "Seconds"]
 
 FILES_SPOKEN = {
@@ -293,7 +294,7 @@ def run_drill(ui, path=None, rng=None, now=None, clock=time.monotonic, n=N_SQUAR
     squares = pick_squares(rng, n)
     previous = best_result(read_results(path))
     click = play if play is not None else play_click
-    ui.say("Square-colour drill. I'll name thirty squares. Say light or dark after each one. "
+    ui.say("Square-colour drill. I'll name twenty squares. Say light or dark after each one. "
            "White and black are fine too. A click means correct. Only your thinking time is counted.")
     thinking = 0.0
     score = 0

@@ -158,8 +158,8 @@ def choose_start(ui, s, player_colour):
     if s["start"] == "usual":
         return chess.STARTING_FEN
 
-    ui.say("A board will open in a new window. Set up the position with the mouse, choose whose turn it is, "
-           "then click 'Start the game'.")
+    # Instructions only: the window is about to open, so nothing is spoken.
+    print("  Set up the position with the mouse, choose whose turn it is, then click 'Start the game'.")
     try:
         from .board_editor import edit_position
         fen = edit_position(s.get("custom_fen") or None, white_at_bottom=(player_colour == chess.WHITE))
@@ -404,7 +404,7 @@ def format_help(context=None, requests_left=None):
             "  settings                       Colour, level, requests and start",
             "  level 1 to 8                   Change the engine's level",
             "  play white / play black / switch colours / random",
-            "  square drill / drill           The 30-square colour test",
+            "  square drill / drill           The 20-square colour test",
             "  reset rating                   Start your rating again",
             "  show board                     See the last game and step through it, or load a PGN",
         ]),
@@ -955,8 +955,9 @@ def reconstruction_test(ui, board, player):
     """The reconstruction test on a blank board.  Returns the score, or None."""
     if not ui.yes_no("Would you like to reconstruct the final position from memory, on a blank board?"):
         return None
-    ui.say("A blank board will open in a new window. Put the pieces where you think they stood at the "
-           "end of the game, then click 'Check my position'. Click 'Skip' if you change your mind.")
+    # Instructions only: the window is about to open, so nothing is spoken.
+    print("  Put the pieces where you think they stood at the end of the game, "
+          "then click 'Check my position'. Click 'Skip' if you change your mind.")
     try:
         from .reconstruction import reconstruct_position
         score = reconstruct_position(board, white_at_bottom=(player == chess.WHITE),
@@ -1140,11 +1141,14 @@ def finish(ui, s, board, start_fen, player, result, termination, used, log=None,
     games = ratings.read_games(config.RATING_LOG)
     if unrated:
         ui.say("You resigned within the first five moves, so this game isn't rated.")
+    # Only a short rating line is spoken; the rest of the report is on screen.
+    p = ratings.performance(ratings.recent(games))
+    if p:
+        ui.say(f"Your rating is {p['performance']}.")
+    else:
+        ui.say("You have no rating yet.")
     for line in ratings.report(games, opponent):
-        if line.startswith("With only") or line == ratings.CAUTIONS:
-            print("  " + line)      # on screen only: it would be repetitive to hear every game
-        else:
-            ui.say(line)
+        print("  " + line)
     print(f"  (Your rating log is in {config.RATING_LOG}; it opens in any spreadsheet.)\n")
 
     # Auto level-up applies only if the player has not already chosen a

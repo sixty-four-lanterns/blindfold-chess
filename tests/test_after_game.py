@@ -103,8 +103,9 @@ def test_whole_game_and_report(setup, monkeypatch, capsys):
     game.play(game.Interface(speaker), s, "/fake/stockfish")
     said = "\n".join(speaker.said)
 
+    out = capsys.readouterr().out
     assert game.CHECKPOINT not in said               # shown on screen only, never spoken
-    assert capsys.readouterr().out.count(game.CHECKPOINT) == 1
+    assert out.count(game.CHECKPOINT) == 1
     assert "I'll note that you lost the thread at move 3" in said
     assert "already noted that you first lost the thread at move 3" in said
     assert "During the game you told me you had lost the thread at move 3" in said
@@ -112,11 +113,16 @@ def test_whole_game_and_report(setup, monkeypatch, capsys):
     assert "At move 5 you played castles kingside. The engine preferred pawn to d4." in said
     assert "You tried one illegal move, at move 1." in said
     assert "You asked for the position once, at move 2." in said
-    assert "Your blindfold performance rating is" in said
+    assert "Your rating is 600." in said             # loss at level 2 (1000) -> 600
+    assert "Your blindfold performance rating is" not in said
+    assert "  Your blindfold performance rating is 600." in out
+    assert "That comes from" in out and "That comes from" not in said
+    assert "will open in a new window" not in said
+    assert "Check my position" in out and "Check my position" not in said
     assert "Say review for the after-game review" in said
     # saved and the rating are spoken before the reconstruction test
     assert said.index("Game saved in your games folder.") < said.index("Say review for the after-game review")
-    assert said.index("Your blindfold performance rating is") < said.index("You placed 31 of 32")
+    assert said.index("Your rating is 600.") < said.index("You placed 31 of 32")
     # the final position isn't shown before the reconstruction test
     assert said.index("Game saved in your games folder.") < said.index("You placed 31 of 32")
 
@@ -217,9 +223,10 @@ def test_default_play_skips_start_and_skips_review_if_declined(setup, capsys):
     assert "biggest slips" not in said
     assert "read the moves" not in said
     assert "Game saved in your games folder." in said
-    assert "Your blindfold performance rating is" in said
+    assert "Your rating is 1200." in said            # loss at level 5 (1600) -> 1200
+    assert "Your blindfold performance rating is" not in said
     assert said.index("Game saved in your games folder.") < said.index("Say review for the after-game review")
-    assert said.index("Your blindfold performance rating is") < said.index("Say review for the after-game review")
+    assert said.index("Your rating is 1200.") < said.index("Say review for the after-game review")
 
     headers = read_pgn(tmp_path).headers
     assert headers["LostThreadMarked"] == "3"
@@ -248,7 +255,8 @@ def test_finish_skips_review_but_saves_and_rates(setup):
                 "Draw agreed", 1, log, engine_path=None)
     said = "\n".join(speaker.said)
     assert "Game saved in your games folder." in said
-    assert "Your blindfold performance rating is" in said
+    assert "Your rating is 1200." in said            # draw at level 3 (1200)
+    assert "Your blindfold performance rating is" not in said
     assert "Say review for the after-game review" in said
     assert "lose the thread" not in said
     assert "illegal move attempt" not in said
@@ -939,13 +947,40 @@ def test_finish_does_not_auto_up_at_level_eight(setup):
     assert s["level"] == 8
 
 
-def test_resigning_in_first_five_moves_is_saved_but_unrated(setup):
+def test_finish_speaks_only_the_short_rating(setup, capsys):
+    speaker, script, tmp_path = setup
+    s = dict(config.DEFAULTS, level=2)
+    board = chess.Board()
+    for san in ["e4", "e5", "Nf3", "Nc6", "Bc4", "Nf6"]:
+        board.push_san(san)
+    script([""])                                     # decline the review
+    game.finish(game.Interface(speaker), s, board, chess.STARTING_FEN, chess.WHITE,
+                "0-1", "Checkmate", 0, {})
+    said = speaker.said
+    assert "Your rating is 600." in said             # loss at level 2 (1000) -> 600
+    assert said.count("Your rating is 600.") == 1
+    assert "Your blindfold performance rating is 600." not in said
+    assert not any(t.startswith("That comes from") for t in said)
+    assert not any(t.startswith("With only") for t in said)
+    assert ratings.CAUTIONS not in said
+    out = capsys.readouterr().out
+    assert "  Your blindfold performance rating is 600." in out
+    assert "That comes from your only game: 0 wins, 0 draws and 1 loss, against an average opponent rating of 1000." in out
+    assert "With only 1 game this is just a guide." in out
+    assert ratings.CAUTIONS in out
+
+
+def test_resigning_in_first_five_moves_is_saved_but_unrated(setup, capsys):
     speaker, script, tmp_path = setup
     s = dict(config.DEFAULTS, colour="white", level=2)
     script(["e4", "Nf3", "resign", "yes", ""])
     game.play(game.Interface(speaker), s, "/fake/stockfish")
     said = "\n".join(speaker.said)
     assert "this game isn't rated" in said
+    assert "You have no rating yet." in said
+    assert "Your rating is" not in said
+    assert "There are no games in your rating log yet." not in said
+    assert "There are no games in your rating log yet." in capsys.readouterr().out
     assert "Game saved in your games folder." in said
     (row,) = read_log(tmp_path)
     assert row["Result"] == "unrated"

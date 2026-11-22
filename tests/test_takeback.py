@@ -275,7 +275,10 @@ def test_rating_during_game_does_not_use_a_request_or_block_the_game(setup):
     ])
     game.play(game.Interface(speaker), settings(), "/fake/stockfish")
     said = "\n".join(speaker.said)
-    assert said.count("There are no games in your rating log yet.") == 3   # the early resignation is unrated
+    # "rating" and "my rating" during the game; after an unrated early resignation
+    # the end-of-game line is the short "You have no rating yet."
+    assert said.count("There are no games in your rating log yet.") == 2
+    assert said.count("You have no rating yet.") == 1
     assert "You can only change that before your first move" not in said
     assert "You can only do that before your first move" not in said
     (row,) = read_log(tmp_path)
