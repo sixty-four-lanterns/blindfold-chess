@@ -465,3 +465,31 @@ def test_milestone_read_from_the_log_file(tmp_path, monkeypatch):
     assert len(milestones.read_practice_rows()) == 1
     assert "practice_board" in milestones.detect(drills=[])
     assert ratings.read_games(config.RATING_LOG) == []
+
+
+def test_five_practice_board_games_milestone_definition():
+    assert milestones.group_of("practice_board_5") == "Holding the board"
+    assert milestones.title_of("practice_board_5") == "five practice board games"
+    assert milestones.description_of("practice_board_5") == "Play 5 games with the practice board"
+    ids = [m[0] for m in milestones.MILESTONES]
+    assert ids.index("practice_board_5") == ids.index("five_completed_games") + 1
+
+
+def test_five_practice_board_games_needs_five_not_four():
+    four = milestones.detect(rows=[_practice_row() for _ in range(4)], drills=[])
+    assert four == {"practice_board"}
+    five = milestones.detect(rows=[_practice_row() for _ in range(5)], drills=[])
+    assert five == {"practice_board", "practice_board_5"}
+    other_unrated = [_practice_row(Notes="Resigned in the first 5 moves (scored 0), not rated")] * 3
+    assert "practice_board_5" not in milestones.detect(
+        rows=[_practice_row() for _ in range(4)] + other_unrated, drills=[])
+
+
+def test_five_practice_board_games_from_the_log_file(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "RATING_LOG", str(tmp_path / "rating_log.csv"))
+    monkeypatch.setattr(config, "APP_DIR", str(tmp_path))
+    for n in range(5):
+        ratings.append_game(config.RATING_LOG, _practice_row())
+        earned = milestones.detect(drills=[])
+        assert ("practice_board_5" in earned) == (n == 4)
+    assert ratings.read_games(config.RATING_LOG) == []           # still unrated

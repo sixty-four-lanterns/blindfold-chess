@@ -72,6 +72,9 @@ MILESTONES = [
     ("five_completed_games", "Holding the board",
      "five completed games",
      "Finish five games without resigning"),
+    ("practice_board_5", "Holding the board",
+     "five practice board games",
+     "Play 5 games with the practice board"),
     ("rating_1200", "Mastery",
      "a rating of 1200",
      "Reach a blindfold rating of 1200"),
@@ -380,6 +383,8 @@ def detect(rows=None, drills=None, pgns=None, practice_rows=None):
 
     if practice_rows:
         earned.add("practice_board")
+    if len(practice_rows) >= 5:
+        earned.add("practice_board_5")
     if perfect_drills(drills):
         earned.add("perfect_drill")
     if perfect_drills(drills, max_seconds=60):
