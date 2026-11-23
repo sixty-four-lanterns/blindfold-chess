@@ -85,6 +85,12 @@ LAST_MOVE_PHRASE = re.compile(
 SHOW_BOARD_PHRASE = re.compile(
     r"^(?:(?:please\s+)?(?:show|see|view)\s+(?:me\s+)?(?:the\s+)?board(?:\s+please)?|board)$"
 )
+# Practice board: an unrated game with a window showing whose pieces are where.
+# Checked before "show board", so "show practice board" is not taken for it.
+PRACTICE_BOARD_PHRASE = re.compile(
+    r"^(?:please\s+)?(?:(?:show|open|start|use)\s+(?:me\s+)?)?(?:the\s+|a\s+)?"
+    r"practi[cs]e\s+board(?:\s+please)?$"
+)
 # In-game: print the score sheet (uses a position request).  Must not match
 # "show board" or "last moves".
 SHOW_MOVES_PHRASE = re.compile(
@@ -264,6 +270,7 @@ COMMAND_PHRASES = (
     "what did you play",
     "show board", "show the board", "show me the board",
     "show moves", "show the moves", "show me the moves",
+    "practice board", "practise board",
 )
 
 
@@ -322,6 +329,8 @@ def _command_for_phrase(phrase):
         return "rating"
     if "last move" in phrase or phrase == "what did you play":
         return "last move"
+    if phrase.startswith("practi"):
+        return "practice board"
     if "moves" in phrase:
         return "show moves"
     if "board" in phrase:
@@ -346,6 +355,8 @@ def special_command(text, fuzzy=True):
         return None
     if is_help_command(t):
         return "help"
+    if PRACTICE_BOARD_PHRASE.match(t):
+        return "practice board"
     if SHOW_BOARD_PHRASE.match(t):
         return "show board"
     if SHOW_MOVES_PHRASE.match(t):
@@ -662,5 +673,6 @@ def vocabulary():
         "milestones", "milestone", "achievements", "achievement", "how", "am",
         "doing", "process", "congress", "report", "progres", "prog", "gress",
         "ress", "pro", "i", "show", "board", "see", "view", "me",
+        "practice", "practise",
     } | set(NUMBER_WORDS) - {"won", "too", "for", "ate", "nought"}
     return sorted(words)

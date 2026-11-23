@@ -243,6 +243,7 @@ def session_command(text):
         "help": "help",
         "level": "level",
         "show board": "show-board",
+        "practice board": "practice-board",
     }
     if special in session:
         return session[special]
@@ -302,13 +303,15 @@ def between_games(ui, s=None):
 
     Also accepts square drill, progress, rating, reset rating, a level
     change and 'show board' (look through the last game, or load a PGN)
-    between games.
+    between games.  'practice board' starts the next game straight away as
+    an unrated practice-board game.
     """
     def understand(text):
         cmd = session_command(text)
         if cmd == "level":
             return ("level", text)
-        if cmd in ("drill", "progress", "reset-rating", "rating", "help", "show-board"):
+        if cmd in ("drill", "progress", "reset-rating", "rating", "help", "show-board",
+                   "practice-board"):
             return cmd
         words = (text or "").split()
         if is_yes(words):
@@ -320,14 +323,17 @@ def between_games(ui, s=None):
     while True:
         ui.help_context, ui.help_requests_left = "between", None
         # Shown on screen only; just "Enter command." is spoken.
-        print("  Another game? Say yes or no. Or say: show board, square drill, milestones, "
-              "rating, reset rating, level 1 to 8, or help.")
+        print("  Another game? Say yes or no. Or say: show board, practice board, square drill, "
+              "milestones, rating, reset rating, level 1 to 8, or help.")
         pending = getattr(ui, "pending_command", None)   # said at the review question
         ui.pending_command = None
         choice = understand(pending) if pending else None
         if choice is None:
             choice = ui.ask("Enter command.", understand, "Yes, no, or a command?")
         if choice == "play":
+            return True
+        if choice == "practice-board":
+            ui.practice_next = True              # the next game is a practice game
             return True
         if choice == "quit":
             return False
@@ -386,6 +392,7 @@ def format_help(context=None, requests_left=None):
         "  take back / undo / go back     Undo your last move and its reply",
         "  position                       Hear the position (uses a request)",
         "  show moves                     The whole game on screen (uses a position request)",
+        "  practice board                 Unrated game with a board showing whose pieces are where",
     ]
     requests = _help_requests_line(requests_left)
     if requests and context in ("during", "before", None):
@@ -408,6 +415,7 @@ def format_help(context=None, requests_left=None):
             "  square drill / drill           The 20-square colour test",
             "  reset rating                   Start your rating again",
             "  show board                     See the last game and step through it, or load a PGN",
+            "  practice board                 Unrated game with a board showing whose pieces are where",
         ]),
         ("after", "After a game", [
             "  review                         Or press Enter to skip",
@@ -652,6 +660,26 @@ def apply_level_command(ui, s, text, engine=None, player_has_moved=False):
     return requested
 
 
+PRACTICE_ON = "Practice board on. This game won't be rated."
+
+
+def open_practice_board(ui, board, player, window=None):
+    """Open (or reopen) the practice-board window on this position.
+
+    Returns the window controller.  If no window can be opened, the game is
+    still a practice game; a short note is printed (nothing is spoken).
+    """
+    if window is None:
+        factory = getattr(ui, "practice_window_factory", None)
+        if factory is None:
+            from .practice_board import PracticeBoard as factory
+        window = factory(white_at_bottom=(player == chess.WHITE))
+    if not window.open(board):
+        print("  (I couldn't open the practice board window on this computer. It needs a screen "
+              "and tkinter. This game is still a practice game, so it isn't rated.)")
+    return window
+
+
 def play(ui, s, engine_path, setup=False, quick=None):
     """Play one game and record it.  Returns normally when the game is over.
 
@@ -664,7 +692,13 @@ def play(ui, s, engine_path, setup=False, quick=None):
         setup = not quick
 
     ask_for_start = setup
+    # Practice board: chosen between games, before the first move, or mid-game.
+    # Either way the game is unrated.  It survives a restart (new settings).
+    practice = bool(getattr(ui, "practice_next", False))
+    ui.practice_next = False
+    practice_announced = False
     while True:
+        window = None
         colour = s["colour"] if s["colour"] != "random" else random.choice(["white", "black"])
         player = chess.WHITE if colour == "white" else chess.BLACK
         if ask_for_start:
@@ -681,7 +715,8 @@ def play(ui, s, engine_path, setup=False, quick=None):
         last_reply = None
         result = termination = None
         # For the after-game report: what went wrong, and when
-        log = {"illegal": [], "requests": [], "lost_mark": None, "takebacks": 0}
+        log = {"illegal": [], "requests": [], "lost_mark": None, "takebacks": 0,
+               "practice": practice}
         reminded = set()
         player_has_moved = False
         restart = False
@@ -694,9 +729,16 @@ def play(ui, s, engine_path, setup=False, quick=None):
         ui.say(opening)
         if start_fen != chess.STARTING_FEN:
             ui.say("Here is the starting position. " + describe_position(board))
+        if practice and not practice_announced:
+            ui.say(PRACTICE_ON)
+            practice_announced = True
         print_status(board, player, game_level, limit, used, takebacks=log["takebacks"])
         try:
+            if practice:
+                window = open_practice_board(ui, board, player)
             while True:
+                if window is not None:
+                    window.update(board)                 # after every move, and take-backs
                 outcome = board.outcome(claim_draw=True)
                 if outcome:
                     result = outcome.result()
@@ -759,6 +801,17 @@ def play(ui, s, engine_path, setup=False, quick=None):
                             game_level = changed
                         print_status(board, player, game_level, limit, used,
                                      takebacks=log["takebacks"])
+                        continue
+                    if cmd == "practice-board" or (cmd == "show-board" and practice):
+                        if not practice:
+                            practice = log["practice"] = True
+                            ui.say(PRACTICE_ON)
+                            practice_announced = True
+                            window = open_practice_board(ui, board, player)
+                        elif window is not None and window.is_open:
+                            print("  The practice board is already open.")
+                        else:
+                            window = open_practice_board(ui, board, player, window)
                         continue
                     if cmd == "show-board":
                         if player_has_moved:
@@ -907,6 +960,8 @@ def play(ui, s, engine_path, setup=False, quick=None):
                         raise Stop()
         finally:
             engine.close()
+            if window is not None:
+                window.close()                           # the game is over (or restarting)
 
         if restart:
             continue
@@ -1051,7 +1106,8 @@ def wants_review(ui):
         if is_no(words):
             return False
         cmd = session_command(text)
-        if cmd in ("drill", "progress", "reset-rating", "rating", "level", "show-board"):
+        if cmd in ("drill", "progress", "reset-rating", "rating", "level", "show-board",
+                   "practice-board"):
             # A between-games command: skip the review and do it straight after.
             ui.pending_command = text
             return False
@@ -1121,6 +1177,9 @@ def finish(ui, s, board, start_fen, player, result, termination, used, log=None,
         "IllegalAttempts": illegal_header(illegal),
         "Takebacks": str(log.get("takebacks", 0)),
     }
+    if log.get("practice"):
+        headers["Event"] = "Practice board game"
+        headers["PracticeBoard"] = "yes"
     if log.get("lost_mark"):
         headers["LostThreadMarked"] = str(log["lost_mark"])
     if board.root().fen() != chess.STARTING_FEN:
@@ -1151,16 +1210,24 @@ def finish(ui, s, board, start_fen, player, result, termination, used, log=None,
         "Position request moves": ", ".join(str(n) for n in requests),
         "Takebacks": log.get("takebacks", 0),
     }
-    unrated = is_early_resignation(board, player, termination)
+    practice = bool(log.get("practice"))
+    early = is_early_resignation(board, player, termination)
+    unrated = practice or early
     if unrated:
         # Kept in the log for the record, but "unrated" is skipped by the
-        # rating, the level-up check and the milestones.
+        # rating, the level-up check and the milestones (apart from the
+        # practice-board milestone, which looks for the note below).
         row["Result"] = "unrated"
+    if practice:
+        row["Notes"] = f"Practice board game (scored {score_text}), not rated"
+    elif early:
         row["Notes"] = f"Resigned in the first {UNRATED_RESIGN_MOVES} moves (scored {score_text}), not rated"
     ratings.append_game(config.RATING_LOG, row)
 
     games = ratings.read_games(config.RATING_LOG)
-    if unrated:
+    if practice:
+        print("  This was a practice board game, so it isn't rated.")   # said at the start
+    elif early:
         ui.say("You resigned within the first five moves, so this game isn't rated.")
     # Only a short rating line is spoken; the rest of the report is on screen.
     p = ratings.performance(ratings.recent(games))
@@ -1197,7 +1264,8 @@ def _run_review(ui, board, player, engine_path, path, headers, row, log, illegal
         notes = ui.type_in("Type a one-line note about the game for your log, or just press Enter to skip:")
         row["First lost thread"] = lost
         row["Rule breaks"] = breaks
-        row["Notes"] = notes
+        # Keep the unrated note (practice board, early resignation) in front of the player's own
+        row["Notes"] = "; ".join(n for n in (row.get("Notes") or "", notes) if n)
         headers["FirstLostThread"] = lost or "never"
         try:
             reconstruction = reconstruction_test(ui, board, player)

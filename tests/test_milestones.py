@@ -56,13 +56,13 @@ def write_pgn(tmp_path, name, moves, headers=None):
     return rel, board
 
 
-def test_milestone_count_is_twenty_three():
-    assert milestones.TOTAL == 23
-    assert len(milestones.MILESTONES) == 23
-    assert len({m[0] for m in milestones.MILESTONES}) == 23
+def test_milestone_count_is_twenty_four():
+    assert milestones.TOTAL == 24
+    assert len(milestones.MILESTONES) == 24
+    assert len({m[0] for m in milestones.MILESTONES}) == 24
     groups = [m[1] for m in milestones.MILESTONES]
     assert groups.count("Foundations") == 3
-    assert groups.count("First games") == 6
+    assert groups.count("First games") == 7
     assert milestones.MILESTONES[3][0] == "move_12"
     assert groups.count("Holding the board") == 6
     assert groups.count("Mastery") == 8
@@ -358,10 +358,10 @@ def test_hand_added_rows_count(store):
 def test_progress_lines_and_bars():
     lines = milestones.progress_lines(achieved={})
     assert lines[0] == "Foundations [---] 0/3"
-    assert lines[1] == "First games [------] 0/6"
+    assert lines[1] == "First games [-------] 0/7"
     assert lines[2] == "Holding the board [------] 0/6"
     assert lines[3] == "Mastery [--------] 0/8"
-    assert "You've earned 0 of 23 milestones." in lines
+    assert "You've earned 0 of 24 milestones." in lines
     assert lines[-1].startswith("Next up: Get a perfect drill.")
     # Next 2–3 are the first unearned ones
     assert "Get a perfect drill in under 60 seconds." in lines[-1]
@@ -372,13 +372,13 @@ def test_progress_lines_and_bars():
             "first_win": "2026-11-05"}
     lines = milestones.progress_lines(achieved=some)
     assert lines[0] == "Foundations [###] 3/3"
-    assert lines[1] == "First games [##----] 2/6"
-    assert "You've earned 5 of 23 milestones." in lines
+    assert lines[1] == "First games [##-----] 2/7"
+    assert "You've earned 5 of 24 milestones." in lines
     assert "Next up: Reach move 12 in a game." in lines[-1]
 
     all_ids = {m[0]: "2026-11-19" for m in milestones.MILESTONES}
     lines = milestones.progress_lines(achieved=all_ids)
-    assert "You've earned 23 of 23 milestones." in lines
+    assert "You've earned 24 of 24 milestones." in lines
     assert "You've earned every milestone. Well done." in lines
 
 
@@ -387,7 +387,7 @@ def test_announcement_lines():
     lines = milestones.announcement_lines(["first_checkmate", "first_win"], achieved)
     assert lines[0] == "New milestone: first checkmate."
     assert lines[1] == "New milestone: first win."
-    assert lines[2] == "You've earned 2 of 23."
+    assert lines[2] == "You've earned 2 of 24."
     assert milestones.announcement_lines([], achieved) == []
 
 
@@ -435,12 +435,12 @@ def test_reset_rating_keeps_earned_milestones(store):
 def test_status_line_includes_milestones_not_eval(store):
     milestones.save({"first_win": "2026-11-19", "complete_game": "2026-11-19"})
     line = format_status(chess.Board(), chess.WHITE, 2, 3, 0, games=[])
-    assert line.endswith("| Milestones 2/23")
+    assert line.endswith("| Milestones 2/24")
     assert "Blindfold rating: no rating yet" in line
     assert "eval" not in line.lower()
     assert "fen" not in line.lower()
     earned, total = milestones.counts()
-    assert (earned, total) == (2, 23)
+    assert (earned, total) == (2, 24)
 
 
 class Speaker:
@@ -466,5 +466,5 @@ def test_update_and_announce(store):
     assert "New milestone: a perfect drill." in said
     assert "New milestone: a perfect drill in under 60 seconds." in said
     assert "New milestone: a perfect drill in under 40 seconds." in said
-    assert "You've earned 3 of 23." in said
+    assert "You've earned 3 of 24." in said
     assert set(new) == {"perfect_drill", "perfect_drill_90", "perfect_drill_60"}

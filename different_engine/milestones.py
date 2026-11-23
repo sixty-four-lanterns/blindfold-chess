@@ -51,6 +51,9 @@ MILESTONES = [
     ("first_win", "First games",
      "first win",
      "Win a game"),
+    ("practice_board", "First games",
+     "a practice board game",
+     "Play a game with the practice board"),
     ("reconstruction_100", "Holding the board",
      "a perfect reconstruction",
      "Score 100 per cent on the reconstruction test"),
@@ -123,6 +126,24 @@ def read_game_rows(path=None):
         return []
     with open(path, newline="", encoding="utf-8-sig") as f:
         return [r for r in csv.DictReader(f) if (r.get("Result") or "").strip() != "unrated"]
+
+
+PRACTICE_NOTE = "Practice board game"
+
+
+def is_practice_row(row):
+    """A practice-board game: unrated, but it still earns its own milestone."""
+    return (row.get("Notes") or "").strip().startswith(PRACTICE_NOTE)
+
+
+def read_practice_rows(path=None):
+    """Practice-board rows of the rating log.  read_game_rows() leaves these
+    out, because they are unrated."""
+    path = path or config.RATING_LOG
+    if not os.path.exists(path) or os.path.getsize(path) == 0:
+        return []
+    with open(path, newline="", encoding="utf-8-sig") as f:
+        return [r for r in csv.DictReader(f) if is_practice_row(r)]
 
 
 def read_drill_rows(path=None):
@@ -336,9 +357,17 @@ def perfect_drills(drills, max_seconds=None):
 # Detectors
 # ---------------------------------------------------------------------------
 
-def detect(rows=None, drills=None, pgns=None):
-    """The set of milestone ids that the current logs support."""
+def detect(rows=None, drills=None, pgns=None, practice_rows=None):
+    """The set of milestone ids that the current logs support.
+
+    Practice-board games are unrated, so they are not among the rows read
+    from the log; they are read separately (or picked out of `rows` when the
+    caller passes rows in) and earn only the practice-board milestone.
+    """
+    if practice_rows is None:
+        practice_rows = read_practice_rows() if rows is None else [r for r in rows if is_practice_row(r)]
     rows = list(rows if rows is not None else read_game_rows())
+    rows = [r for r in rows if not is_practice_row(r)]
     drills = list(drills if drills is not None else read_drill_rows())
     pgns = pgns or {}
 
@@ -349,6 +378,8 @@ def detect(rows=None, drills=None, pgns=None):
 
     earned = set()
 
+    if practice_rows:
+        earned.add("practice_board")
     if perfect_drills(drills):
         earned.add("perfect_drill")
     if perfect_drills(drills, max_seconds=60):

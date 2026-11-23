@@ -154,7 +154,7 @@ Speak as you would to a person: name the piece and the square, and say "takes" f
 - If your words could mean two different moves, or no legal move, it says so and asks again. It never guesses. Treat it as a free drill: picture the move on your mental board before you repeat it.
 - When you clearly name a move that isn't legal (a piece and a square, or notation), it quietly notes the move number and what you said, for the after-game report. Those are usually slips of the mental board: a piece that wasn't there, a blocked path, or a king left in check. Mishearings, half-heard moves and moves that could mean two things are never counted against you.
 - Every five moves (at moves 6, 11, 16 and so on) it shows "This would be a good moment for a checkpoint" on screen (it isn't spoken), as a reminder to run through the position in your mind. It never reads the position for you. To switch the reminder off, change `"checkpoint_reminders"` to `false` in `settings.json`.
-- After each move, a short **status line** is printed in the terminal, for example: `Move 12 | You: White | Level 3 | Position requests left: 2 | Blindfold rating: 1233 (14 games) | Milestones 9/23`. If you have taken a move back in this game, it also shows `Take-backs: N`. It never shows the board, the moves, or an evaluation.
+- After each move, a short **status line** is printed in the terminal, for example: `Move 12 | You: White | Level 3 | Position requests left: 2 | Blindfold rating: 1233 (14 games) | Milestones 9/24`. If you have taken a move back in this game, it also shows `Take-backs: N`. It never shows the board, the moves, or an evaluation.
 - During the game it behaves like a sporting opponent and nothing more: no hints, no evaluations, no warnings about loose pieces. Those wait until the game is over, and only if you ask for a review.
 
 ### Things you can ask for
@@ -174,10 +174,22 @@ Speak as you would to a person: name the piece and the square, and say "takes" f
 | **square drill** / **drill** / **colour drill** / **square colours** | Before your first move, or between games, runs the spoken square-colour drill. After you have moved, it tells you it is too late for this game. |
 | **milestones** / **progress** / **how am I doing** | Tells you how many milestones you have earned, with a short progress bar for each level, and the next two or three to aim for. **Milestones** is the most reliable word to say; "progress" is also accepted, together with "achievements" and a few common mishearings of "progress". You can say this during a game too. |
 | **reset rating** | Before your first move, or between games, starts your rating again from scratch, after asking you to confirm. Your old games are kept in a dated file. Milestones you have already earned are kept. |
-| **show board** / **show the board** / **board** | Between games (or before your first move), opens the last game on a board so you can step through it move by move with an analysis bar, or load a PGN file. See [Show board](#show-board-going-through-the-game). Once you have moved, it says "The board is available between games." |
+| **show board** / **show the board** / **board** | Between games (or before your first move), opens the last game on a board so you can step through it move by move with an analysis bar, or load a PGN file. See [Show board](#show-board-going-through-the-game). Once you have moved, it says "The board is available between games." During a [practice board](#practice-board) game it opens (or reopens) the practice board instead. |
+| **practice board** | Starts an unrated practice game with a board on screen showing the occupied squares and whose piece it is, not which piece. Say it before your first move, partway through a game, or between games. See [Practice board](#practice-board). |
 | **draw** | Offers a draw. The engine accepts if it doesn't think it is better (and not in the first 20 moves). |
 | **resign** | Resigns the game (it checks first). If you resign within your first five moves, the game is still saved but isn't rated: it goes into the rating log marked "unrated" and doesn't count towards your rating, level-ups or milestones. |
 | **rating** / **my rating** / **what's my rating** | Tells you your current blindfold rating and how many games it is based on, for example "Your blindfold rating is 1233 from 14 games." You can say this during a game (it does not use a position request) or between games. It is not the same as **reset rating**, which starts your rating again. |
+
+### Practice board
+
+A halfway step between playing with sight of the board and full blindfold. Say **practice board** and a small window opens beside the program, showing the board with its coordinates (a–h and 1–8) round the edges, the right way round for the colour you are playing. Every square also has its name (e4, f6 and so on) in small letters in the middle: faint on an empty square, and dark on an ivory piece or light on a charcoal one. It shows the occupied squares and whose piece it is, not which piece: every piece is the same shaded ball, ivory for White and charcoal for Black, so you still have to remember which piece stands where. There is no last-move shading and no evaluation.
+
+- **When:** before your first move (this game becomes a practice game), partway through a game (this game becomes a practice game from then on), or between games (the next game starts at once as a practice game).
+- **Unrated:** a practice game is always unrated, whether the board was on from the start or turned on later. It says once, **"Practice board on. This game won't be rated."** The game is still saved as a PGN file (with the header `PracticeBoard "yes"`) and goes into your rating log marked "unrated", with the note "Practice board game (scored 1), not rated" (or 0.5, or 0). It doesn't count towards your rating, level-ups or the other milestones, but your first one earns the **practice board game** milestone.
+- **During the game:** the window updates after every move, yours and the engine's, and after a take-back. Everything else (speech, position requests, show moves, take back) works as usual. You can close the window and the game carries on; say **practice board** again (or **show board**) to reopen it. When the game ends, the window closes.
+- **Only that game:** the game after it is an ordinary rated game unless you say **practice board** again.
+
+On Windows the keyboard is handed back to the program's own window when the board opens, so you can carry on typing. On Linux and a Mac you may need to click back on the terminal once. If the board can't be opened (for example with no screen), a short note is printed and the game is still a practice game.
 
 ## At the end of the game
 
@@ -185,7 +197,7 @@ When the game ends (checkmate, stalemate, a draw, or resignation):
 
 1. It **saves the game as a PGN file** in the `games` folder and says **"Game saved in your games folder."** The full path is printed on the screen, but not read aloud. (It doesn't show the game on screen yet, because that would give away the final position.)
 2. It adds a line to your **rating log** and says **"Your rating is 1233."** (or whatever the figure is; if you have no rated games yet, **"You have no rating yet."**). The rest of the report — how the figure was worked out, the guide when you have fewer than 20 games, any suggestion to move down a level, and the two cautions — is printed on the screen, not spoken.
-3. It then says: **"Say review for the after-game review, or press Enter to carry on."** If you press Enter, say no, or skip, that is the end of it. If you have just earned any milestones, it tells you, for example: "New milestone: first checkmate. You've earned 9 of 23." You can also say **show board** (or another between-games command such as **square drill** or **rating**) at this question: it skips the review and does that straight away. It then says **"Enter command."** The screen shows the choices: say **yes** for another game or **no** to finish, or say **show board**, **square drill**, **milestones**, **rating**, **reset rating**, **level** 1 to 8, or **help**. If you said **"lost thread"** during the game, that move has already been noted in the file.
+3. It then says: **"Say review for the after-game review, or press Enter to carry on."** If you press Enter, say no, or skip, that is the end of it. If you have just earned any milestones, it tells you, for example: "New milestone: first checkmate. You've earned 9 of 24." You can also say **show board** (or another between-games command such as **square drill** or **rating**) at this question: it skips the review and does that straight away. It then says **"Enter command."** The screen shows the choices: say **yes** for another game or **no** to finish, or say **show board**, **practice board**, **square drill**, **milestones**, **rating**, **reset rating**, **level** 1 to 8, or **help**. If you said **"lost thread"** during the game, that move has already been noted in the file.
 
 If you say **review**, it then:
 
@@ -252,22 +264,22 @@ At the end it tells you your score out of 20 and your thinking time in seconds, 
 
 ## Milestones and progress
 
-The program keeps a short list of milestones, worked out automatically from your rating log and your drill log. They are grouped in four levels: **Foundations**, **First games**, **Holding the board** and **Mastery**. You don't have to tick anything yourself. A file called `milestones.json` stores the date each one was first earned. If you add games or drill results to the logs by hand, they are counted too.
+The program keeps a short list of milestones, worked out automatically from your rating log and your drill log. They are grouped in four levels: **Foundations**, **First games**, **Holding the board** and **Mastery**. You don't have to tick anything yourself. A file called `milestones.json` stores the date each one was first earned. If you add games or drill results to the logs by hand, they are counted too. Unrated games don't count, except that a practice-board game earns the **practice board game** milestone.
 
-After each game, and after each square-colour drill, any newly earned milestone is announced, for example: "New milestone: first checkmate. You've earned 9 of 23."
+After each game, and after each square-colour drill, any newly earned milestone is announced, for example: "New milestone: first checkmate. You've earned 9 of 24."
 
 Say **milestones** (or **progress**, or start the program with `--progress`), to hear (and see) a text progress bar for each level, and the next two or three milestones to aim for:
 
 ```
 Foundations [###] 3/3
-First games [##----] 2/6
+First games [##-----] 2/7
 Holding the board [------] 0/6
 Mastery [--------] 0/8
-You've earned 5 of 23 milestones.
+You've earned 5 of 24 milestones.
 Next up: Reach move 12 in a game. Reach move 20 without asking for the position. Play a game with no illegal move attempts.
 ```
 
-The status line during a game also shows `Milestones 9/23`. It never shows the board or an evaluation.
+The status line during a game also shows `Milestones 9/24`. It never shows the board or an evaluation.
 
 If you reset your rating, milestones you have already earned are kept. A later check of the logs will only add new ones; it never takes one away.
 
