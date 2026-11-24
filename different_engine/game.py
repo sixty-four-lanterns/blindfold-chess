@@ -13,10 +13,10 @@ import chess
 import chess.pgn
 
 from . import drill, milestones, ratings, review, settings as config
-from .engine import Engine, LEVELS, level_name, level_rating
+from .engine import Engine, LEVELS, level_label, level_name, level_rating, level_slug, level_title
 from .moves import (parse, describe_move, describe_position, describe_game, parse_number,
                     format_move_list, is_illegal_attempt, is_help_command, number_word,
-                    special_command, parse_level_command)
+                    special_command, parse_level_command, parse_beginner)
 from .reconstruction import describe_reconstruction, short_score
 
 
@@ -116,7 +116,7 @@ def limit_words(limit):
 
 def choose_settings(ui, s, first_time, offer_same=True):
     if offer_same and not first_time:
-        ui.say(f"Last time you chose {s['colour']}, engine level {s['level']}, "
+        ui.say(f"Last time you chose {s['colour']}, engine {level_label(s['level'])}, "
                f"and {limit_words(s['position_limit'])}.")
         if ui.yes_no("Would you like the same settings again?"):
             return s
@@ -129,11 +129,16 @@ def choose_settings(ui, s, first_time, offer_same=True):
     s["colour"] = ui.ask("Which colour would you like to play: white, black, or random?", colour)
 
     def level(text):
+        beginner = parse_beginner(text)
+        if beginner is not None:
+            return None if beginner == "invalid" else beginner
         n = parse_number(text)
-        return n if n in LEVELS else None
-    ui.say("The engine has eight levels. " +
+        return n if n in LEVELS and n >= 1 else None
+    ui.say("The engine has eight levels, and two beginner levels below them. "
+           f"Beginner 1 is about {level_rating(-1)}. " +
            " ".join(f"Level {n} is about {level_rating(n)}." for n in (1, 3, 5, 8)))
-    s["level"] = ui.ask("Which level would you like, from 1 to 8? If unsure, start low.", level)
+    s["level"] = ui.ask("Which level would you like, from 1 to 8, or beginner 1 or 2? "
+                        "If unsure, start low.", level)
 
     def limit(text):
         if "unlimited" in text or "no limit" in text:
@@ -324,7 +329,7 @@ def between_games(ui, s=None):
         ui.help_context, ui.help_requests_left = "between", None
         # Shown on screen only; just "Enter command." is spoken.
         print("  Another game? Say yes or no. Or say: show board, practice board, square drill, "
-              "milestones, rating, reset rating, level 1 to 8, or help.")
+              "milestones, rating, reset rating, level 1 to 8, beginner 1 or 2, or help.")
         pending = getattr(ui, "pending_command", None)   # said at the review question
         ui.pending_command = None
         choice = understand(pending) if pending else None
@@ -402,7 +407,7 @@ def format_help(context=None, requests_left=None):
         "  rating                         Your current blindfold rating",
         "  milestones / progress          Your milestones so far",
         "  help                           Show this list (nothing is spoken)",
-        "  level 1 to 8                   Change the engine's level",
+        "  level 1 to 8 / beginner 1, 2   Change the engine's level",
         "  draw                           Offer a draw",
         "  resign                         Resign (it will check first)",
     ]
@@ -410,7 +415,7 @@ def format_help(context=None, requests_left=None):
         ("during", "During a game", during),
         ("before", "Before your first move, or between games", [
             "  settings                       Colour, level, requests and start",
-            "  level 1 to 8                   Change the engine's level",
+            "  level 1 to 8 / beginner 1, 2   Change the engine's level",
             "  play white / play black / switch colours / random",
             "  square drill / drill           The 20-square colour test",
             "  reset rating                   Start your rating again",
@@ -491,7 +496,7 @@ def format_status(board, player, level, limit, used, games=None, milestones_coun
     if milestones_count is None:
         milestones_count = milestones.counts()
     earned, total = milestones_count
-    line = (f"Move {board.fullmove_number} | You: {colour} | Level {level} | "
+    line = (f"Move {board.fullmove_number} | You: {colour} | {level_title(level)} | "
             f"Position requests left: {left} | Blindfold rating: {rating_for_status(games)} | "
             f"Milestones {earned}/{total}")
     if takebacks:
@@ -645,18 +650,18 @@ def apply_level_command(ui, s, text, engine=None, player_has_moved=False):
     if requested is None:
         return None
     if requested == "invalid":
-        ui.say("Please say a level from 1 to 8.")
+        ui.say("Please say a level from 1 to 8, or beginner 1 or 2.")
         return None
     if player_has_moved:
         s["level"] = requested
         config.save(s)
-        ui.say(f"Level {requested} from your next game.")
+        ui.say(f"{level_title(requested)} from your next game.")
         return None
     s["level"] = requested
     config.save(s)
     if engine is not None:
         set_engine_level(engine, requested)
-    ui.say(f"Engine level {requested}, about {level_rating(requested)}.")
+    ui.say(f"Engine {level_label(requested)}, about {level_rating(requested)}.")
     return requested
 
 
@@ -722,7 +727,7 @@ def play(ui, s, engine_path, setup=False, quick=None):
         restart = False
         milestones.recompute()
 
-        opening = f"You're {colour.capitalize()}, level {game_level}, {limit_words(limit)}."
+        opening = f"You're {colour.capitalize()}, {level_label(game_level)}, {limit_words(limit)}."
         print("  The game is about to begin.")              # on screen only
         if board.turn == player:
             opening += " Your move."
@@ -1186,7 +1191,7 @@ def finish(ui, s, board, start_fen, player, result, termination, used, log=None,
         headers["SetUp"], headers["FEN"] = "1", board.root().fen()
 
     os.makedirs(config.GAMES_DIR, exist_ok=True)
-    base = f"{now:%Y-%m-%d_%H%M}_{'white' if player else 'black'}_level{level}"
+    base = f"{now:%Y-%m-%d_%H%M}_{'white' if player else 'black'}_{level_slug(level)}"
     path = os.path.join(config.GAMES_DIR, base + ".pgn")
     n = 2
     while os.path.exists(path):
@@ -1243,7 +1248,7 @@ def finish(ui, s, board, start_fen, player, result, termination, used, log=None,
     # different level for the next game.
     if s["level"] == level:
         new_level, message = ratings.maybe_level_up(games, level)
-        if new_level:
+        if new_level is not None:                  # beginner 2 is level 0
             s["level"] = new_level
             config.save(s)
             ui.say(message)

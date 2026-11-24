@@ -13,6 +13,8 @@ import csv
 import datetime
 import os
 
+from .engine import MAX_LEVEL, MIN_LEVEL, level_label
+
 COLUMNS = [
     "Date", "Opponent", "Opponent rating", "Colour", "Time control", "Result",
     "First lost thread", "Rule breaks", "Notes", "Position requests",
@@ -204,7 +206,7 @@ def report(games, current_opponent=None):
 
 def opponent_name(level):
     """The 'Opponent' value written for a game at this engine level."""
-    return f"Stockfish level {level}"
+    return f"Stockfish {level_label(level)}"      # "Stockfish level 3", "Stockfish beginner 1"
 
 
 def games_at_level(games, level):
@@ -218,7 +220,8 @@ def maybe_level_up(games, level):
 
     All five must be at this level; games at other levels are ignored, and
     take-back games still count (they are ordinary rated games).  Level 8 is
-    the maximum, so nothing happens there.  After a move-up the new level
+    the maximum, so nothing happens there.  Beginner 1 moves up to beginner 2,
+    and beginner 2 to level 1.  After a move-up the new level
     starts with a fresh count, because it does not yet have five games.
 
     Returns (new_level, message) or (None, None).
@@ -227,7 +230,7 @@ def maybe_level_up(games, level):
         level = int(level)
     except (TypeError, ValueError):
         return None, None
-    if level >= 8 or level < 1:
+    if level >= MAX_LEVEL or level < MIN_LEVEL:
         return None, None
     at_level = games_at_level(games, level)
     if len(at_level) < LEVEL_UP_GAMES:
@@ -236,8 +239,8 @@ def maybe_level_up(games, level):
     if performance(recent_five)["score"] <= LEVEL_UP_SCORE:
         return None, None
     new_level = level + 1
-    message = (f"You scored over 70 per cent in your last five games at level {level}, "
-               f"so I've moved the engine up to level {new_level}.")
+    message = (f"You scored over 70 per cent in your last five games at {level_label(level)}, "
+               f"so I've moved the engine up to {level_label(new_level)}.")
     return new_level, message
 
 

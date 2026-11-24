@@ -96,18 +96,21 @@ Before your first move you can:
 - Say **rating** (or **my rating**, or **what's my rating**) to hear your current blindfold rating and how many games it is based on.
 - Say **reset rating** to start your rating again from scratch. It asks you to confirm first, and keeps your old games in a dated file.
 - Say **show board** to look through your last game on a board, move by move with an analysis bar, or to load a PGN file (see [Show board](#show-board-going-through-the-game)).
-- Say **level 4** (or any level from 1 to 8, or **set level 4**, or **change level to 4**) to change the engine's level. Spoken numbers such as "level four" work too. Before your first move it applies at once; after you have moved, it is saved for the next game.
+- Say **level 4** (or any level from 1 to 8, or **set level 4**, or **change level to 4**) to change the engine's level. Spoken numbers such as "level four" work too. For the two easiest levels, say **beginner 1** or **beginner 2**. Before your first move it applies at once; after you have moved, it is saved for the next game.
 
 To go through the full settings questions at launch, start the program with `--setup` (see [Extra options](#extra-options)).
 
-The engine has eight levels:
+The engine has eight levels, and two beginner levels below them:
 
   | Level | Rough rating | | Level | Rough rating |
   |---|---|---|---|---|
-  | 1 | 800 | | 5 | 1600 |
-  | 2 | 1000 | | 6 | 1800 |
-  | 3 | 1200 | | 7 | 2000 |
-  | 4 | 1400 | | 8 | 2300 |
+  | Beginner 1 | 400 | | 4 | 1400 |
+  | Beginner 2 | 600 | | 5 | 1600 |
+  | 1 | 800 | | 6 | 1800 |
+  | 2 | 1000 | | 7 | 2000 |
+  | 3 | 1200 | | 8 | 2300 |
+
+Level 1 is already the weakest that Stockfish can play, so the two beginner levels are made weaker by the program itself: as well as playing like level 1, they sometimes play a random legal move instead (about 3 moves in 10 at Beginner 2, and 6 in 10 at Beginner 1). They leave pieces hanging and miss captures, as a beginner does, but they still take a free piece or find a mate in one some of the time. They are called "beginner" rather than given new numbers, so levels 1 to 8, and every game already in your rating log, keep their meaning.
 
 Start low. You're training to hold the position, not to beat a grandmaster in a box.
 
@@ -169,7 +172,7 @@ Speak as you would to a person: name the piece and the square, and say "takes" f
 | **lost thread** | Tells it you have lost track of the position ("lost the thread" and "I've lost the thread" work too). It notes the move number for your after-game report and carries on; it doesn't read the position out. If you say it again, it keeps the first move. |
 | **help** / **commands** / **what can I say** | Shows the list of commands on the screen; nothing is spoken. During a game the list includes how many position requests you have left. |
 | **settings** | Before your first move, opens the full settings dialogue (colour, level, position limit, and usual or custom start). After you have moved, it tells you it is too late for this game. |
-| **level 1** to **level 8** / **set level N** / **change level to N** | Sets the engine's level (spoken numbers such as "four" are accepted too). Before your first move, or between games, it applies at once and it says "Engine level 4, about 1400." After you have moved, this game stays at its current level and it says "Level 4 from your next game." A number outside 1 to 8 gets a short reminder of the range. It does not use a position request. |
+| **level 1** to **level 8** / **set level N** / **change level to N** / **beginner 1** / **beginner 2** | Sets the engine's level (spoken numbers such as "four" are accepted too). **Beginner 1** (about 400) and **beginner 2** (about 600) are the two levels below level 1. Before your first move, or between games, it applies at once and it says "Engine level 4, about 1400." After you have moved, this game stays at its current level and it says "Level 4 from your next game." A number outside 1 to 8 gets a short reminder of the range ("Please say a level from 1 to 8, or beginner 1 or 2."). At a beginner level it says, for example, "Engine beginner 1, about 400." It does not use a position request. |
 | **play white** / **play black** / **switch colours** / **random** | Before your first move, changes sides, starts the game again from the start, and remembers your choice. |
 | **square drill** / **drill** / **colour drill** / **square colours** | Before your first move, or between games, runs the spoken square-colour drill. After you have moved, it tells you it is too late for this game. |
 | **milestones** / **progress** / **how am I doing** | Tells you how many milestones you have earned, with a short progress bar for each level, and the next two or three to aim for. **Milestones** is the most reliable word to say; "progress" is also accepted, together with "achievements" and a few common mishearings of "progress". You can say this during a game too. |
@@ -197,7 +200,7 @@ When the game ends (checkmate, stalemate, a draw, or resignation):
 
 1. It **saves the game as a PGN file** in the `games` folder and says **"Game saved in your games folder."** The full path is printed on the screen, but not read aloud. (It doesn't show the game on screen yet, because that would give away the final position.)
 2. It adds a line to your **rating log** and says **"Your rating is 1233."** (or whatever the figure is; if you have no rated games yet, **"You have no rating yet."**). The rest of the report — how the figure was worked out, the guide when you have fewer than 20 games, any suggestion to move down a level, and the two cautions — is printed on the screen, not spoken.
-3. It then says: **"Say review for the after-game review, or press Enter to carry on."** If you press Enter, say no, or skip, that is the end of it. If you have just earned any milestones, it tells you, for example: "New milestone: first checkmate. You've earned 9 of 25." You can also say **show board** (or another between-games command such as **square drill** or **rating**) at this question: it skips the review and does that straight away. It then says **"Enter command."** The screen shows the choices: say **yes** for another game or **no** to finish, or say **show board**, **practice board**, **square drill**, **milestones**, **rating**, **reset rating**, **level** 1 to 8, or **help**. If you said **"lost thread"** during the game, that move has already been noted in the file.
+3. It then says: **"Say review for the after-game review, or press Enter to carry on."** If you press Enter, say no, or skip, that is the end of it. If you have just earned any milestones, it tells you, for example: "New milestone: first checkmate. You've earned 9 of 25." You can also say **show board** (or another between-games command such as **square drill** or **rating**) at this question: it skips the review and does that straight away. It then says **"Enter command."** The screen shows the choices: say **yes** for another game or **no** to finish, or say **show board**, **practice board**, **square drill**, **milestones**, **rating**, **reset rating**, **level** 1 to 8, **beginner** 1 or 2, or **help**. If you said **"lost thread"** during the game, that move has already been noted in the file.
 
 If you say **review**, it then:
 
@@ -239,7 +242,7 @@ How the Different Engine uses it:
 - After every game it works out your rating and says **"Your rating is 1233."** (or whatever the figure is), as a whole number. The rest of the report is shown on screen, not spoken. Don't chase decimals; a steady trend over several months means far more than a change of twenty or thirty points.
 - **Rolling window:** once you have played more than 30 games, it uses only your most recent 30, so the figure shows your current strength.
 - **Fewer than 20 games:** it still shows the figure, but reminds you it is only a guide until you have played at least 20 games, and preferably 30.
-- **Too easy or too hard:** if you score more than 70 per cent over your last five rated games at the current level, it moves the engine up one level automatically (level 8 is the maximum), saves that in `settings.json`, and tells you, for example: "You scored over 70 per cent in your last five games at level 3, so I've moved the engine up to level 4." The next game starts at the new level, and the count starts again, so it will not jump twice until you have played five games at the new level. Games in which you took a move back still count. It does not move the engine down automatically: if you are scoring less than about 30 per cent against your current level, it suggests on screen that you try moving down a level.
+- **Too easy or too hard:** if you score more than 70 per cent over your last five rated games at the current level, it moves the engine up one level automatically (Beginner 1 goes up to Beginner 2, Beginner 2 to level 1, and level 8 is the maximum), saves that in `settings.json`, and tells you, for example: "You scored over 70 per cent in your last five games at level 3, so I've moved the engine up to level 4." The next game starts at the new level, and the count starts again, so it will not jump twice until you have played five games at the new level. Games in which you took a move back still count. It does not move the engine down automatically: if you are scoring less than about 30 per cent against your current level, it suggests on screen that you try moving down a level.
 - **Two cautions**, shown on screen each time (not spoken): the ratings given to engine levels are rough estimates, not always comparable with human ratings, so the gauge measures your progress against the same machine rather than your exact strength; and at low levels an engine makes odd blunders that a human would not, so treat the reading as a guide, not a verdict.
 
 **The log** is a file called `rating_log.csv` in the Different Engine folder. It opens in Excel, LibreOffice, Numbers or Google Sheets. Each game has one row: date, opponent, opponent rating, colour, time control, result (1, 0.5 or 0), first lost thread, rule breaks, notes, position requests used, how the game ended, the starting position, the name of the PGN file, then the number of illegal attempts and the moves at which they came, the moves at which you asked for the position, the reconstruction score (for example 24/28) and its percentage, the average centipawn loss, how many moves matched the engine's first choice, and the slips with your verdicts (for example "7 Nf6 visualisation"), and how many times a move was taken back. The last few are left blank if you skipped the reconstruction test or the slip review. A log made by an earlier version is brought up to date automatically the next time you finish a game: every row is kept, and so is any column you added yourself. You can add your own games to it by hand, and they will be counted too.

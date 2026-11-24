@@ -100,6 +100,9 @@ SHOW_MOVES_PHRASE = re.compile(
 LEVEL_COMMAND = re.compile(
     r"\b(?:set\s+level|change\s+level(?:\s+to)?|level(?:\s+to)?)\b"
 )
+# The two levels below level 1: "beginner 1" (about 400) and "beginner 2" (about 600).
+BEGINNER_WORD = re.compile(r"\bbeginners?\b")
+BEGINNER_LEVELS = {1: -1, 2: 0}         # what the player says -> the engine's level number
 # "progress" is often misheard with a British accent; "milestones" is the main alternative.
 PROGRESS_PHRASE = re.compile(
     r"""\b(?:
@@ -618,16 +621,34 @@ def parse_number(text):
     return total if found else None
 
 
-def parse_level_command(text):
-    """A 'level N' command: return 1-8, 'invalid' if out of range, or None.
+def parse_beginner(text):
+    """'beginner 1' -> -1, 'beginner two' -> 0, 'beginner 3' -> 'invalid',
+    no 'beginner' -> None.  A bare 'beginner' is 'invalid' (which one?)."""
+    t = re.sub(r"[^a-z0-9\s]", " ", (text or "").lower())
+    if not BEGINNER_WORD.search(t):
+        return None
+    n = parse_number(t)
+    return BEGINNER_LEVELS.get(n, "invalid")
 
-    Accepts 'level 4', 'level four', 'set level 4' and 'change level to 4'.
-    A bare 'level' is not a command, so it does not steal the settings question.
+
+def parse_level_command(text):
+    """A 'level N' command: return 1-8, -1 or 0 for beginner 1 or 2,
+    'invalid' if out of range, or None.
+
+    Accepts 'level 4', 'level four', 'set level 4', 'change level to 4',
+    'beginner 1' and 'level beginner two'.  A bare 'level' is not a command,
+    so it does not steal the settings question.  'Level 0' is not a level:
+    the two below level 1 are called beginner 1 and beginner 2.
     """
     # Keep digits, unlike _command_text, so "level 4" is not reduced to "level".
     t = re.sub(r"[^a-z0-9\s]", " ", (text or "").lower())
     t = re.sub(r"\s+", " ", t).strip()
-    if not t or not LEVEL_COMMAND.search(t):
+    if not t:
+        return None
+    beginner = parse_beginner(t)
+    if beginner is not None:
+        return beginner
+    if not LEVEL_COMMAND.search(t):
         return None
     n = parse_number(t)
     if n is None:
@@ -673,6 +694,6 @@ def vocabulary():
         "milestones", "milestone", "achievements", "achievement", "how", "am",
         "doing", "process", "congress", "report", "progres", "prog", "gress",
         "ress", "pro", "i", "show", "board", "see", "view", "me",
-        "practice", "practise",
+        "practice", "practise", "beginner",
     } | set(NUMBER_WORDS) - {"won", "too", "for", "ate", "nought"}
     return sorted(words)

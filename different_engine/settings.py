@@ -15,7 +15,7 @@ MILESTONES_FILE = os.path.join(APP_DIR, "milestones.json")
 
 DEFAULTS = {
     "colour": "white",          # "white", "black" or "random"
-    "level": 2,                 # engine level, 1 to 8
+    "level": 2,                 # engine level, 1 to 8 (-1 and 0 are beginner 1 and 2)
     "position_limit": 3,        # position read-outs allowed per game (-1 = unlimited)
     "start": "usual",           # "usual" or "custom"
     "custom_fen": "",           # last custom position

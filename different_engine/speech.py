@@ -204,6 +204,11 @@ def grammar_phrases():
         phrases.add(f"change level {word}")
         phrases.add(f"change level to {word}")
         phrases.add(f"level to {word}")
+    for word in ("one", "two"):                      # the two levels below level 1
+        phrases.add(f"beginner {word}")
+        phrases.add(f"level beginner {word}")
+        phrases.add(f"set level beginner {word}")
+        phrases.add(f"change level to beginner {word}")
     for tens in ("twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"):
         for unit in ("one", "two", "three", "four", "five", "six", "seven", "eight", "nine"):
             phrases.add(f"{tens} {unit}")

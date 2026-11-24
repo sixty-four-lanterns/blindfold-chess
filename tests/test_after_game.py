@@ -891,7 +891,7 @@ def test_level_command_rejects_out_of_range(setup):
     script(["level 9", "level twenty", "resign", "yes", ""])
     game.play(game.Interface(speaker), s, "/fake/stockfish")
     said = "\n".join(speaker.said)
-    assert said.count("Please say a level from 1 to 8.") == 2
+    assert said.count("Please say a level from 1 to 8, or beginner 1 or 2.") == 2
     assert s["level"] == 2
     (row,) = read_log(tmp_path)
     assert row["Opponent"] == "Stockfish level 2"

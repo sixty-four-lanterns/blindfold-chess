@@ -97,7 +97,7 @@ def test_between_games_shows_the_last_game(setup, monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "will open in a new window" not in out
     assert ("  Another game? Say yes or no. Or say: show board, practice board, square drill, "
-            "milestones, rating, reset rating, level 1 to 8, or help.") in out
+            "milestones, rating, reset rating, level 1 to 8, beginner 1 or 2, or help.") in out
 
 
 def test_show_board_refused_once_the_game_has_started(setup, monkeypatch):

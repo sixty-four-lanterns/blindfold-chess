@@ -283,6 +283,9 @@ def reconstruction_perfect(row):
 
 def opponent_level(row):
     text = row.get("Opponent") or ""
+    m = re.search(r"beginner\s*([12])\b", text, re.I)    # beginner 1 and 2 are -1 and 0
+    if m:
+        return int(m.group(1)) - 2
     m = re.search(r"level\s*(\d+)", text, re.I)
     if m:
         return int(m.group(1))
