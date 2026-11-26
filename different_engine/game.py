@@ -15,8 +15,8 @@ import chess.pgn
 from . import drill, milestones, ratings, review, settings as config
 from .engine import Engine, LEVELS, level_label, level_name, level_rating, level_slug, level_title
 from .moves import (parse, describe_move, describe_position, describe_game, parse_number,
-                    format_move_list, is_illegal_attempt, is_help_command, number_word,
-                    special_command, parse_level_command, parse_beginner)
+                    format_move_list, format_recent_moves, is_illegal_attempt, is_help_command,
+                    number_word, special_command, parse_level_command, parse_beginner)
 from .reconstruction import describe_reconstruction, short_score
 
 
@@ -237,6 +237,22 @@ def resolve_colour(command, current):
     return command, command
 
 
+def set_move_summary(s, enabled):
+    """Turn the five-move on-screen summary on or off, and remember the choice.
+
+    Confirmation is printed, not spoken.
+    """
+    already = bool(s.get("move_summary", True))
+    s["move_summary"] = bool(enabled)
+    config.save(s)
+    if already == bool(enabled):
+        print(f"  The move summary is already {'on' if enabled else 'off'}.")
+    elif enabled:
+        print("  The move summary is now on. I'll show the last five moves on screen every five moves.")
+    else:
+        print("  The move summary is now off.")
+
+
 def session_command(text):
     """Commands for before the first move, between games, or (for progress) at any time."""
     special = special_command(text)
@@ -249,6 +265,8 @@ def session_command(text):
         "level": "level",
         "show board": "show-board",
         "practice board": "practice-board",
+        "moves on": "moves-on",
+        "moves off": "moves-off",
     }
     if special in session:
         return session[special]
@@ -316,7 +334,7 @@ def between_games(ui, s=None):
         if cmd == "level":
             return ("level", text)
         if cmd in ("drill", "progress", "reset-rating", "rating", "help", "show-board",
-                   "practice-board"):
+                   "practice-board", "moves-on", "moves-off"):
             return cmd
         words = (text or "").split()
         if is_yes(words):
@@ -358,6 +376,10 @@ def between_games(ui, s=None):
             ui.say(ratings.spoken_rating(ratings.read_games(config.RATING_LOG)))
         elif choice == "reset-rating":
             reset_rating(ui)
+        elif choice in ("moves-on", "moves-off"):
+            if s is None:
+                s = config.load()
+            set_move_summary(s, choice == "moves-on")
 
 
 # ---------------------------------------------------------------------------
@@ -397,6 +419,7 @@ def format_help(context=None, requests_left=None):
         "  take back / undo / go back     Undo your last move and its reply",
         "  position                       Hear the position (uses a request)",
         "  show moves                     The whole game on screen (uses a position request)",
+        "  moves on / moves off           Show the last five moves every five moves (on screen)",
         "  practice board                 Unrated game with a board showing whose pieces are where",
     ]
     requests = _help_requests_line(requests_left)
@@ -485,27 +508,38 @@ def rating_for_status(games=None):
     return f"{p['performance']} ({p['games']} {noun})"
 
 
-def format_status(board, player, level, limit, used, games=None, milestones_count=None, takebacks=0):
-    """A compact status line: move, colour, level, requests left, rating and milestones.
+def format_status(board, player, level, limit, used, games=None, milestones_count=None,
+                  takebacks=0, show_rating=False, show_milestones=False):
+    """A compact status line: move, colour, level and requests left.
 
     Never includes the board, the moves, or an evaluation.
+    The blindfold rating and the milestones count are included only when
+    show_rating / show_milestones is True (at the start of a game).  After a
+    game the rating is announced once it has been recalculated.  Neither is
+    repeated after every move.
     Take-backs are shown only when there has been at least one in this game.
     """
     colour = "White" if player == chess.WHITE else "Black"
     left = "unlimited" if limit < 0 else str(max(0, limit - used))
-    if milestones_count is None:
-        milestones_count = milestones.counts()
-    earned, total = milestones_count
     line = (f"Move {board.fullmove_number} | You: {colour} | {level_title(level)} | "
-            f"Position requests left: {left} | Blindfold rating: {rating_for_status(games)} | "
-            f"Milestones {earned}/{total}")
+            f"Position requests left: {left}")
+    if show_rating:
+        line += f" | Blindfold rating: {rating_for_status(games)}"
+    if show_milestones:
+        if milestones_count is None:
+            milestones_count = milestones.counts()
+        earned, total = milestones_count
+        line += f" | Milestones {earned}/{total}"
     if takebacks:
         line += f" | Take-backs: {takebacks}"
     return line
 
 
-def print_status(board, player, level, limit, used, games=None, takebacks=0):
-    print("  " + format_status(board, player, level, limit, used, games, takebacks=takebacks))
+def print_status(board, player, level, limit, used, games=None, takebacks=0,
+                 show_rating=False, show_milestones=False):
+    print("  " + format_status(board, player, level, limit, used, games,
+                               takebacks=takebacks, show_rating=show_rating,
+                               show_milestones=show_milestones))
 
 
 def _as_spoken(text):
@@ -727,8 +761,9 @@ def play(ui, s, engine_path, setup=False, quick=None):
         restart = False
         milestones.recompute()
 
-        opening = f"You're {colour.capitalize()}, {level_label(game_level)}, {limit_words(limit)}."
+        opening = f"You're {colour.capitalize()}, {level_label(game_level)}."
         print("  The game is about to begin.")              # on screen only
+        print(f"  {limit_words(limit).capitalize()}.")      # on screen only; not spoken
         if board.turn == player:
             opening += " Your move."
         ui.say(opening)
@@ -737,7 +772,8 @@ def play(ui, s, engine_path, setup=False, quick=None):
         if practice and not practice_announced:
             ui.say(PRACTICE_ON)
             practice_announced = True
-        print_status(board, player, game_level, limit, used, takebacks=log["takebacks"])
+        print_status(board, player, game_level, limit, used,
+                     takebacks=log["takebacks"], show_rating=True, show_milestones=True)
         try:
             if practice:
                 window = open_practice_board(ui, board, player)
@@ -778,9 +814,14 @@ def play(ui, s, engine_path, setup=False, quick=None):
                     print_status(board, player, game_level, limit, used, takebacks=log["takebacks"])
                     continue
 
-                if s.get("checkpoint_reminders", True) and checkpoint_due(board, player, reminded):
+                if checkpoint_due(board, player, reminded):
                     reminded.add(board.fullmove_number)
-                    print("  " + CHECKPOINT)                     # on screen only: not spoken
+                    if s.get("checkpoint_reminders", True):
+                        print("  " + CHECKPOINT)                 # on screen only: not spoken
+                    if s.get("move_summary", True):
+                        recent = format_recent_moves(board)
+                        if recent:
+                            print(f"  Last five moves: {recent}")  # on screen only
 
                 ui.help_context = "before" if not player_has_moved else "during"
                 ui.help_requests_left = "unlimited" if limit < 0 else max(0, limit - used)
@@ -798,6 +839,9 @@ def play(ui, s, engine_path, setup=False, quick=None):
                         continue
                     if cmd == "rating":
                         ui.say(ratings.spoken_rating(ratings.read_games(config.RATING_LOG)))
+                        continue
+                    if cmd in ("moves-on", "moves-off"):
+                        set_move_summary(s, cmd == "moves-on")
                         continue
                     if cmd == "level":
                         changed = apply_level_command(

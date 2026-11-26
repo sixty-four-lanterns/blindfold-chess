@@ -176,7 +176,7 @@ class FakeEngine:
         pass
 
 
-def test_a_beginner_game_is_logged_with_its_rating(tmp_path, monkeypatch):
+def test_a_beginner_game_is_logged_with_its_rating(tmp_path, monkeypatch, capsys):
     import builtins, csv
     for name in ("APP_DIR",):
         monkeypatch.setattr(config, name, str(tmp_path))
@@ -190,7 +190,13 @@ def test_a_beginner_game_is_logged_with_its_rating(tmp_path, monkeypatch):
     monkeypatch.setattr(builtins, "input", lambda prompt="": next(answers))
     speaker = Speaker()
     game.play(game.Interface(speaker), dict(config.DEFAULTS, colour="white", level=-1), "/fake")
-    assert speaker.said[0] == "You're White, beginner 1, three position requests. Your move."
+    assert speaker.said[0] == "You're White, beginner 1. Your move."
+    assert all("position request" not in line.lower() for line in speaker.said
+               if line.startswith("You're "))
+    out = capsys.readouterr().out
+    assert "Three position requests." in out
+    assert "Blindfold rating:" in out
+    assert "Milestones " in out
     with open(tmp_path / "rating_log.csv", newline="", encoding="utf-8-sig") as f:
         (row,) = list(csv.DictReader(f))
     assert row["Opponent"] == "Stockfish beginner 1" and row["Opponent rating"] == "400"

@@ -96,6 +96,10 @@ PRACTICE_BOARD_PHRASE = re.compile(
 SHOW_MOVES_PHRASE = re.compile(
     r"^(?:(?:please\s+)?show\s+(?:me\s+)?(?:the\s+)?moves(?:\s+please)?)$"
 )
+# Toggle the periodic on-screen move summary.  Must not match "show moves".
+MOVES_SUMMARY_PHRASE = re.compile(
+    r"^(?:please\s+)?moves\s+(on|off)(?:\s+please)?$"
+)
 # "level" on its own is not a command; a number from 1 to 8 must follow.
 LEVEL_COMMAND = re.compile(
     r"\b(?:set\s+level|change\s+level(?:\s+to)?|level(?:\s+to)?)\b"
@@ -334,6 +338,8 @@ def _command_for_phrase(phrase):
         return "last move"
     if phrase.startswith("practi"):
         return "practice board"
+    if phrase in ("moves on", "moves off"):
+        return phrase
     if "moves" in phrase:
         return "show moves"
     if "board" in phrase:
@@ -362,6 +368,9 @@ def special_command(text, fuzzy=True):
         return "practice board"
     if SHOW_BOARD_PHRASE.match(t):
         return "show board"
+    m = MOVES_SUMMARY_PHRASE.match(t)
+    if m:
+        return f"moves {m.group(1)}"
     if SHOW_MOVES_PHRASE.match(t):
         return "show moves"
     if RESET_RATING_PHRASE.search(t):
@@ -580,6 +589,23 @@ def format_move_list(board):
     return re.sub(r"\.\.\.(?=\S)", "... ", board.root().variation_san(moves))
 
 
+def format_recent_moves(board, plies=10):
+    """The last `plies` half-moves (five full moves by default) as standard SAN.
+
+    Returns None if no moves have been played yet.  Move numbers follow the
+    game, so a custom start with Black to move is written as '1... e5'.
+    """
+    moves = list(board.move_stack)
+    if not moves:
+        return None
+    recent = moves[-plies:]
+    skipped = len(moves) - len(recent)
+    start = board.root().copy(stack=False)
+    for move in moves[:skipped]:
+        start.push(move)
+    return re.sub(r"\.\.\.(?=\S)", "... ", start.variation_san(recent))
+
+
 def describe_game(start_board, moves):
     """Every move of a game in words, one line per move number."""
     board = start_board.copy(stack=False)
@@ -694,6 +720,6 @@ def vocabulary():
         "milestones", "milestone", "achievements", "achievement", "how", "am",
         "doing", "process", "congress", "report", "progres", "prog", "gress",
         "ress", "pro", "i", "show", "board", "see", "view", "me",
-        "practice", "practise", "beginner",
+        "practice", "practise", "beginner", "off",
     } | set(NUMBER_WORDS) - {"won", "too", "for", "ate", "nought"}
     return sorted(words)

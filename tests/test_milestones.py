@@ -435,8 +435,13 @@ def test_reset_rating_keeps_earned_milestones(store):
 def test_status_line_includes_milestones_not_eval(store):
     milestones.save({"first_win": "2026-11-19", "complete_game": "2026-11-19"})
     line = format_status(chess.Board(), chess.WHITE, 2, 3, 0, games=[])
-    assert line.endswith("| Milestones 2/25")
-    assert "Blindfold rating: no rating yet" in line
+    assert line == "Move 1 | You: White | Level 2 | Position requests left: 3"
+    assert "Blindfold rating" not in line
+    assert "Milestones" not in line
+    start = format_status(chess.Board(), chess.WHITE, 2, 3, 0, games=[],
+                          show_rating=True, show_milestones=True)
+    assert "Blindfold rating: no rating yet" in start
+    assert start.endswith("| Milestones 2/25")
     assert "eval" not in line.lower()
     assert "fen" not in line.lower()
     earned, total = milestones.counts()

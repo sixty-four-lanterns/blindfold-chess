@@ -85,7 +85,7 @@ You can run the test again at any time; see [Extra options](#extra-options) belo
 
 ## Step 4: It starts a game at once
 
-After the welcome it goes straight into a game, using your last settings, or, the first time, these usual ones: you play **White**, the engine is at **level 2**, and you may ask for the position **three** times. It says something like: "Welcome to the Different Engine. You're White, level 2, three position requests. Your move." If you are playing Black, it announces the engine's first move instead.
+After the welcome it goes straight into a game, using your last settings, or, the first time, these usual ones: you play **White**, the engine is at **level 2**, and you may ask for the position **three** times. It says something like: "Welcome to the Different Engine. You're White, level 2. Your move." The number of position requests is shown on the screen, not spoken. If you are playing Black, it announces the engine's first move instead.
 
 Before your first move you can:
 
@@ -156,8 +156,8 @@ Speak as you would to a person: name the piece and the square, and say "takes" f
 - If you don't name a piece, it assumes a pawn, just as in written notation.
 - If your words could mean two different moves, or no legal move, it says so and asks again. It never guesses. Treat it as a free drill: picture the move on your mental board before you repeat it.
 - When you clearly name a move that isn't legal (a piece and a square, or notation), it quietly notes the move number and what you said, for the after-game report. Those are usually slips of the mental board: a piece that wasn't there, a blocked path, or a king left in check. Mishearings, half-heard moves and moves that could mean two things are never counted against you.
-- Every five moves (at moves 6, 11, 16 and so on) it shows "This would be a good moment for a checkpoint" on screen (it isn't spoken), as a reminder to run through the position in your mind. It never reads the position for you. To switch the reminder off, change `"checkpoint_reminders"` to `false` in `settings.json`.
-- After each move, a short **status line** is printed in the terminal, for example: `Move 12 | You: White | Level 3 | Position requests left: 2 | Blindfold rating: 1233 (14 games) | Milestones 9/25`. If you have taken a move back in this game, it also shows `Take-backs: N`. It never shows the board, the moves, or an evaluation.
+- Every five moves (at moves 6, 11, 16 and so on) it shows "This would be a good moment for a checkpoint" on screen (it isn't spoken), as a reminder to run through the position in your mind. It never reads the position for you. To switch the reminder off, change `"checkpoint_reminders"` to `false` in `settings.json`. At the same moments it also prints the last five moves in notation on the screen (not spoken). Say **moves off** or **moves on** to switch that summary, or change `"move_summary"` in `settings.json`.
+- After each move, a short **status line** is printed in the terminal, for example: `Move 12 | You: White | Level 3 | Position requests left: 2`. Your **blindfold rating** and **milestones** count are shown on that line at the start of the game only; the rating is also shown at the end after it has been recalculated. Neither is repeated after every move. If you have taken a move back in this game, it also shows `Take-backs: N`. It never shows the board, the moves, or an evaluation.
 - During the game it behaves like a sporting opponent and nothing more: no hints, no evaluations, no warnings about loose pieces. Those wait until the game is over, and only if you ask for a review.
 
 ### Things you can ask for
@@ -282,7 +282,7 @@ You've earned 5 of 25 milestones.
 Next up: Reach move 12 in a game. Reach move 20 without asking for the position. Play a game with no illegal move attempts.
 ```
 
-The status line during a game also shows `Milestones 9/25`. It never shows the board or an evaluation.
+The status line shows `Milestones 9/25` at the start of a game, not after every move. It never shows the board or an evaluation.
 
 If you reset your rating, milestones you have already earned are kept. A later check of the logs will only add new ones; it never takes one away.
 

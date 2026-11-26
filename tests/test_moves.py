@@ -253,6 +253,7 @@ def test_speech_grammar_uses_known_words():
     assert "say last move" in phrases and "what was the last move" in phrases
     assert "show moves" in phrases and "show the moves" in phrases
     assert "show me the moves" in phrases
+    assert "moves on" in phrases and "moves off" in phrases
     assert "show board" in phrases
     assert "level four" in phrases and "set level four" in phrases
     assert "change level to four" in phrases
@@ -352,7 +353,7 @@ def test_session_commands_are_in_speech_grammar():
     g = set(grammar_phrases())
     for phrase in ("drill", "square drill", "reset rating", "settings", "review",
                    "play white", "play black", "switch colours", "show board",
-                   "show moves"):
+                   "show moves", "moves on", "moves off"):
         assert phrase in g, phrase
 
 
@@ -374,6 +375,31 @@ def test_show_moves_is_not_confused_with_last_moves_or_show_board():
     from different_engine import game
     assert game.session_command("show moves") is None
     assert game.session_command("show board") == "show-board"
+    assert special_command("moves on") == "moves on"
+    assert special_command("moves off") == "moves off"
+    assert special_command("please moves off") == "moves off"
+    assert special_command("Moves ON please") == "moves on"
+    assert parse(START, "moves on").command == "moves on"
+    assert parse(START, "moves off").command == "moves off"
+    assert parse(START, "show moves").command == "show moves"
+    assert game.session_command("moves on") == "moves-on"
+    assert game.session_command("moves off") == "moves-off"
+
+
+def test_format_recent_moves_is_last_five_full_moves():
+    from different_engine.moves import format_recent_moves
+    board = chess.Board()
+    assert format_recent_moves(board) is None
+    for san in ["e4", "e5", "Nf3", "Nc6", "Bb5", "a6", "Ba4", "Nf6", "O-O", "Be7"]:
+        board.push_san(san)
+    assert format_recent_moves(board) == "1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7"
+    board.push_san("Re1")
+    board.push_san("b5")
+    assert format_recent_moves(board) == "2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 6. Re1 b5"
+    early = chess.Board()
+    early.push_san("e4")
+    early.push_san("e5")
+    assert format_recent_moves(early) == "1. e4 e5"
 
 
 def test_format_move_list_uses_standard_san():

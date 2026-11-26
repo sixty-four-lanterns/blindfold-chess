@@ -80,7 +80,9 @@ def test_between_games_shows_the_last_game(setup, monkeypatch, capsys):
 
     def fake_opener(replay, white_at_bottom, engine_path, games_dir, review=False):
         opened.append((replay, white_at_bottom, engine_path))
-    monkeypatch.setattr(rv, "open_viewer", fake_opener)
+    # Only replace show_board's opener default.  Also pointing
+    # rv.open_viewer at the same fake makes `opener is open_viewer` true,
+    # so show_board tries to import tkinter before calling the fake.
     monkeypatch.setattr(rv.show_board, "__defaults__", (None, None, None, fake_opener))
 
     ui = game.Interface(speaker)

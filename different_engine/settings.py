@@ -24,6 +24,7 @@ DEFAULTS = {
     "voice_rate": 160,          # speaking speed, words per minute
     "microphone": None,         # device number from --test-mic, or None for the default
     "checkpoint_reminders": True,   # a short on-screen "good moment for a checkpoint" every five moves
+    "move_summary": True,           # last five moves shown on screen every five moves
 }
 
 

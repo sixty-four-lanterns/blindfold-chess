@@ -212,10 +212,15 @@ def test_default_play_skips_start_and_skips_review_if_declined(setup, capsys):
     game.play(game.Interface(speaker), s, "/fake/stockfish")
     said = "\n".join(speaker.said)
 
-    assert "You're White, level 5, two position requests." in said
+    assert "You're White, level 5." in said
+    assert "You're White, level 5, two position requests." not in said
     assert "Shall we start from the usual opening position" not in said
     assert game.CHECKPOINT not in said               # on screen only
-    assert game.CHECKPOINT in capsys.readouterr().out  # reminders follow settings.json, default on
+    out = capsys.readouterr().out
+    assert game.CHECKPOINT in out                    # reminders follow settings.json, default on
+    assert "Two position requests." in out
+    assert "Blindfold rating: no rating yet" in out
+    assert "Milestones 0/25" in out
     assert "I'll note that you lost the thread at move 3" in said
     assert "already noted that you first lost the thread at move 3" in said
     assert "Say review for the after-game review" in said
@@ -431,7 +436,8 @@ def test_play_black_before_first_move_saves_and_restarts(setup, monkeypatch):
     said = "\n".join(speaker.said)
     assert "You'll play black." in said
     assert "Starting again from the start." in said
-    assert "You're Black, level 2, three position requests." in said
+    assert "You're Black, level 2." in said
+    assert "three position requests" not in said.lower()
     assert s["colour"] == "black"
     import json
     saved = json.loads((tmp_path / "settings.json").read_text())
@@ -457,7 +463,9 @@ def test_switch_colours_and_settings_help_mentioned(setup, monkeypatch, capsys):
     assert "Now available" not in said
     assert "play white / play black / switch colours / random" not in said
     assert "You'll play black." in said
-    assert "You're Black, level 3," in said
+    assert "You're Black, level 3." in said
+    assert "three position requests" not in said.lower()
+    assert "Three position requests." in out
     assert s["colour"] == "black"
 
 
@@ -490,7 +498,8 @@ def test_settings_before_first_move(setup, monkeypatch):
     game.play(game.Interface(speaker), s, "/fake/stockfish")
     said = "\n".join(speaker.said)
     assert "Starting again with your new settings." in said
-    assert "You're Black, level 4, one position request." in said
+    assert "You're Black, level 4." in said
+    assert "one position request" not in said.lower()
     assert s["colour"] == "black" and s["level"] == 4 and s["position_limit"] == 1
     import json
     saved = json.loads((tmp_path / "settings.json").read_text())
@@ -537,7 +546,68 @@ def test_checkpoint_off_when_settings_say_so(setup, capsys):
     assert game.CHECKPOINT not in "\n".join(speaker.said)
     (row,) = read_log(tmp_path)
     assert row["Result"] == "0"                      # five moves made, so the resignation is rated
-    assert game.CHECKPOINT not in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert game.CHECKPOINT not in out
+    # The move summary is a separate setting and stays on by default.
+    assert "Last five moves: 1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7" in out
+    assert "Last five moves" not in "\n".join(speaker.said)
+
+
+def test_move_summary_off_when_settings_say_so(setup, capsys):
+    speaker, script, tmp_path = setup
+    s = dict(config.DEFAULTS, colour="white", level=2, move_summary=False)
+    script([
+        "e4", "Nf3", "Bb5", "Ba4", "castles kingside",
+        "resign", "yes", "",
+    ])
+    game.play(game.Interface(speaker), s, "/fake/stockfish")
+    said = "\n".join(speaker.said)
+    out = capsys.readouterr().out
+    assert "Last five moves" not in out
+    assert "Last five moves" not in said
+    assert game.CHECKPOINT in out
+    assert game.CHECKPOINT not in said
+
+
+def test_moves_off_and_on_commands_change_the_saved_setting(setup, capsys):
+    speaker, script, tmp_path = setup
+    s = dict(config.DEFAULTS, colour="white", level=2, position_limit=3)
+    script([
+        "moves off",
+        "e4", "Nf3", "Bb5", "Ba4", "castles kingside",
+        "resign", "yes", "",
+    ])
+    game.play(game.Interface(speaker), s, "/fake/stockfish")
+    said = "\n".join(speaker.said)
+    out = capsys.readouterr().out
+    assert "The move summary is now off." in out
+    assert "The move summary is now off." not in said
+    assert "Last five moves" not in out
+    assert s["move_summary"] is False
+    import json
+    saved = json.loads((tmp_path / "settings.json").read_text())
+    assert saved["move_summary"] is False
+
+
+def test_moves_on_command_restores_the_summary(setup, capsys):
+    speaker, script, tmp_path = setup
+    s = dict(config.DEFAULTS, colour="white", level=2, move_summary=False)
+    script([
+        "moves on",
+        "e4", "Nf3", "Bb5", "Ba4", "castles kingside",
+        "resign", "yes", "",
+    ])
+    game.play(game.Interface(speaker), s, "/fake/stockfish")
+    said = "\n".join(speaker.said)
+    out = capsys.readouterr().out
+    assert "The move summary is now on." in out
+    assert "The move summary is now on." not in said
+    assert "Last five moves: 1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7" in out
+    assert "Last five moves" not in said
+    assert s["move_summary"] is True
+    import json
+    saved = json.loads((tmp_path / "settings.json").read_text())
+    assert saved["move_summary"] is True
 
 
 def test_status_line_after_moves_has_no_board_or_eval(setup, capsys):
@@ -548,8 +618,10 @@ def test_status_line_after_moves_has_no_board_or_eval(setup, capsys):
     out = capsys.readouterr().out
     assert ("Move 1 | You: White | Level 3 | Position requests left: 3 | "
             "Blindfold rating: no rating yet | Milestones 0/25") in out
-    assert ("Move 2 | You: White | Level 3 | Position requests left: 2 | "
-            "Blindfold rating: no rating yet | Milestones 0/25") in out
+    assert "Three position requests." in out
+    assert "  Move 2 | You: White | Level 3 | Position requests left: 2" in out
+    assert "Move 2 | You: White | Level 3 | Position requests left: 2 | Blindfold rating" not in out
+    assert "Move 2 | You: White | Level 3 | Position requests left: 2 | Milestones" not in out
     assert "rnbqkbnr" not in out.lower()
     assert "fen" not in out.lower()
     assert "eval" not in out.lower()
@@ -562,23 +634,56 @@ def test_format_status_with_and_without_rating(tmp_path, monkeypatch):
     board = chess.Board()
     monkeypatch.setattr(config, "MILESTONES_FILE", str(tmp_path / "milestones.json"))
     line = game.format_status(board, chess.WHITE, 2, 3, 0, games=[])
-    assert line == ("Move 1 | You: White | Level 2 | Position requests left: 3 | "
-                    "Blindfold rating: no rating yet | Milestones 0/25")
+    assert line == "Move 1 | You: White | Level 2 | Position requests left: 3"
+    assert "Blindfold rating" not in line and "Milestones" not in line
+    start = game.format_status(board, chess.WHITE, 2, 3, 0, games=[],
+                               show_rating=True, show_milestones=True)
+    assert start == ("Move 1 | You: White | Level 2 | Position requests left: 3 | "
+                     "Blindfold rating: no rating yet | Milestones 0/25")
     games = [{"opponent": "x", "rating": 1200, "result": 1.0}]
     board.push_san("e4")
-    line = game.format_status(board, chess.BLACK, 4, -1, 0, games=games)
+    line = game.format_status(board, chess.BLACK, 4, -1, 0, games=games,
+                              show_rating=True, show_milestones=True)
     assert line == ("Move 1 | You: Black | Level 4 | Position requests left: unlimited | "
                     "Blindfold rating: 1600 (1 game) | Milestones 0/25")
-    line = game.format_status(board, chess.WHITE, 2, 3, 0, games=[], milestones_count=(9, 25))
+    mid = game.format_status(board, chess.BLACK, 4, -1, 0, games=games)
+    assert mid == "Move 1 | You: Black | Level 4 | Position requests left: unlimited"
+    line = game.format_status(board, chess.WHITE, 2, 3, 0, games=[], milestones_count=(9, 25),
+                              show_milestones=True)
     assert line.endswith("| Milestones 9/25")
     assert "Take-backs" not in line
     assert "eval" not in line.lower() and "board" not in line.lower()
     with_tb = game.format_status(board, chess.WHITE, 2, 3, 0, games=[], milestones_count=(9, 25), takebacks=2)
     assert with_tb.endswith("| Take-backs: 2")
+    assert "Milestones" not in with_tb
     assert with_tb.startswith("Move 1 | You: White | Level 2 |")
 
 
+def test_start_prints_requests_rating_and_milestones_not_after_moves(setup, capsys):
+    """Start-of-game extras stay on screen; mid-game status is just move, colour, level, requests."""
+    speaker, script, tmp_path = setup
+    s = dict(config.DEFAULTS, colour="white", level=2, position_limit=3)
+    script(["e4", "Nf3", "Bb5", "Ba4", "castles kingside", "resign", "yes", ""])
+    game.play(game.Interface(speaker), s, "/fake/stockfish")
+    said = "\n".join(speaker.said)
+    out = capsys.readouterr().out
+    assert "You're White, level 2. Your move." in said
+    assert "You're White, level 2, three position requests." not in said
+    assert "Blindfold rating" not in said
+    assert "  Three position requests." in out
+    assert ("  Move 1 | You: White | Level 2 | Position requests left: 3 | "
+            "Blindfold rating: no rating yet | Milestones 0/25") in out
+    # After the first move the status line has neither rating nor milestones.
+    after_move = [ln for ln in out.splitlines() if ln.startswith("  Move 2 |")]
+    assert after_move
+    assert all("Blindfold rating" not in ln and "Milestones" not in ln for ln in after_move)
+    assert "  Move 2 | You: White | Level 2 | Position requests left: 3" in out
+    # The recalculated rating is spoken (and therefore printed) at the end.
+    assert "Your rating is 600." in said
+
+
 def test_session_command_phrases():
+
     assert game.session_command("square drill") == "drill"
     assert game.session_command("colour drill") == "drill"
     assert game.session_command("color drill") == "drill"
@@ -603,6 +708,8 @@ def test_session_command_phrases():
     assert game.session_command("what can I say") == "help"
     assert game.session_command("last move") is None
     assert game.session_command("show moves") is None
+    assert game.session_command("moves on") == "moves-on"
+    assert game.session_command("moves off") == "moves-off"
     assert game.session_command("show board") == "show-board"
     assert game.session_command("level 4") == "level"
     assert game.session_command("set level four") == "level"
@@ -693,7 +800,7 @@ def test_format_help_marks_current_group_and_stays_compact():
     text = game.format_help("during", requests_left=2)
     lines = text.splitlines()
     assert lines[0] == "Commands"
-    assert 1 < len(lines) <= 34
+    assert 1 < len(lines) <= 36
     assert all(ord(ch) < 128 for ch in text)
     assert "Now available -- During a game" in text
     assert "Position requests left: 2" in text
@@ -702,6 +809,7 @@ def test_format_help_marks_current_group_and_stays_compact():
     assert "take back / undo / go back" in text
     assert "last move" in text
     assert "show moves                     The whole game on screen (uses a position request)" in text
+    assert "moves on / moves off           Show the last five moves every five moves (on screen)" in text
     assert "level 1 to 8" in text
     assert "light / dark" in text
     assert "visualisation" in text
@@ -1033,8 +1141,10 @@ def test_position_request_count_is_printed_not_spoken(setup, capsys):
     game.play(game.Interface(speaker), s, "/fake/stockfish")
     said = "\n".join(speaker.said)
     out = capsys.readouterr().out
-    # Welcome still names the limit; the position itself is still spoken.
-    assert "You're White, level 2, one position request." in said
+    # The limit is on screen only; the position itself is still spoken.
+    assert "You're White, level 2." in said
+    assert "one position request" not in said.lower()
+    assert "One position request." in out
     assert describe_position(chess.Board()) in said
     # The count is on screen only.
     assert "That was position request 1 of 1." not in said
